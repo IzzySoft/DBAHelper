@@ -23,11 +23,22 @@ export ORACLE_SID=$1
 # its SPOOL facility, existing files will be overwritten without warning!
 PREFIX=DEFAULT
 
-# ===============================================================[ analobj ]===
+# ====================================================[ analobj & tabreorg ]===
 # restrictions: what are the minimal settings to display?
 NUMROWS=1000
 CHAINCNT=10
 # estimate or compute statistics?
-CALCSTAT="ESTIMATE"
+CALCSTAT=COMPUTE
 # Log all analyze statements as well (1) or only results (0)?
 LOGALL=0
+
+# ==============================================================[ tabreorg ]===
+# tablespace to temporarily store the tables for reorganization. This must
+# be a permanent (not a temporary!) tablespace!! Don't use "SYSTEM" here ;-)
+TR_TMP=TEMP
+# which value to add to PCTUSED
+TR_USEDINC=0
+# which value to add to PCTFREE
+TR_FREEINC=10
+# min pct of chained rows a table must have to be re-organized
+TR_CHAINPCT=3

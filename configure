@@ -10,6 +10,7 @@
 
 export ORACLE_SID=$1
 FEXT="$1-$2-$3"
+ARGS=$*
 
 # ------------------------------------------[ process command line options ]---
 while [ -n "$1" ] ; do
@@ -21,6 +22,8 @@ while [ -n "$1" ] ; do
     -f) shift; DEFPREF=$1;;
     -x) shift; FEXT=$1;;
     -l) shift; LOGAL=$1;;
+    -t) shift; TR_TEMP=$1;;
+    -o) shift; TR_OWNER=$1;;
   esac
   shift
 done
@@ -36,6 +39,9 @@ if [ -n "$passwd" ]; then
 fi
 if [ -n "$LOGAL" ]; then
   LOGALL=$LOGAL
+fi
+if [ -n "$TR_TEMP" ]; then
+  TR_TMP=$TR_TEMP
 fi
 
 # -----------[ name of the file to write the log to (or 'OFF' for no log) ]---

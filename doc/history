@@ -23,3 +23,4 @@ v0.1.2
 ! all: scripts crashed on objects with names using mixed case
 + all: enhanced command line syntax
 + analobj: LOGALL can now be overridden on cmdline
++ added tabreorg.sh (automatically re-organize fragmented tables)
