@@ -11,7 +11,7 @@ if [ -z "$3" ]; then
   SCRIPT=${0##*/}
   echo
   echo ============================================================================
-  echo "${SCRIPT}       (c) 2003 by Itzchak Rehberg & IzzySoft (devel@izzysoft.de)"
+  echo "${SCRIPT}  (c) 2003-2004 by Itzchak Rehberg & IzzySoft (devel@izzysoft.de)"
   echo ----------------------------------------------------------------------------
   echo This script is intended to move all indexes for one schema into a different 
   echo TableSpace. First configure your SYS user / passwd inside this script, then
@@ -30,12 +30,16 @@ BINDIR=${0%/*}
 # Eval params
 STS=$2
 TTS=$3
-# name of the file to write the log to (or 'OFF' for no log). This file will
-# be overwritten without warning!
-SPOOL="idxrep__$1-$2-$3.spool"
+# name of the file to write the log to (or 'OFF' for no log)
+TPREF=`echo $PREFIX | tr 'a-z' 'A-Z'`
+case "$TPREF" in
+  OFF) SPOOL=OFF;;
+  DEFAULT) SPOOL="idxmov__$1-$2-$3.spool";;
+  *) SPOOL="${PREFIX}__$1-$2-$3.spool";;
+esac
 
 # ====================================================[ Script starts here ]===
-version='0.1.3'
+version='0.1.4'
 $ORACLE_HOME/bin/sqlplus -s /NOLOG <<EOF
 
 CONNECT $user/$password@$1
@@ -51,6 +55,7 @@ SPOOL $SPOOL
 DECLARE
   L_LINE VARCHAR(4000);
   TIMESTAMP VARCHAR2(20);
+  VERSION VARCHAR2(20);
 
   CURSOR C_INDEX IS
     SELECT index_name,owner
@@ -79,6 +84,7 @@ EXCEPTION
 END;
 
 BEGIN
+  VERSION := '$version';
   SELECT TO_CHAR(SYSDATE,'YYYY-MM-DD HH24:MI:SS') INTO TIMESTAMP FROM DUAL;
   L_LINE := '* '||TIMESTAMP||' Moving all indices from TS $STS to TS $TTS:';
   dbms_output.put_line(L_LINE);
@@ -88,7 +94,7 @@ BEGIN
     moveidx(L_LINE);
   END LOOP;
   SELECT TO_CHAR(SYSDATE,'YYYY-MM-DD HH24:MI:SS') INTO TIMESTAMP FROM DUAL;
-  L_LINE := '* '||TIMESTAMP||'...done.';
+  L_LINE := '* '||TIMESTAMP||' IdxMove v'||VERSION||' exiting normally.';
   dbms_output.put_line(L_LINE);
 END;
 /
