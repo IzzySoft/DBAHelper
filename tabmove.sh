@@ -30,12 +30,16 @@ BINDIR=${0%/*}
 # Eval params
 STS=$2
 TTS=$3
-# name of the file to write the log to (or 'OFF' for no log). This file will
-# be overwritten without warning!
-SPOOL="tabmov__$1-$2-$3.spool"
+# name of the file to write the log to (or 'OFF' for no log)
+TPREF=`echo $PREFIX | tr 'a-z' 'A-Z'`
+case "$TPREF" in
+  OFF) SPOOL=OFF;;
+  DEFAULT) SPOOL="tabmov__$1-$2-$3.spool";;
+  *) SPOOL="${PREFIX}__$1-$2-$3.spool";;
+esac
 
 # ====================================================[ Script starts here ]===
-version='0.1.1'
+version='0.1.2'
 $ORACLE_HOME/bin/sqlplus -s /NOLOG <<EOF
 
 CONNECT $user/$password@$1
@@ -51,6 +55,7 @@ SPOOL $SPOOL
 DECLARE
   L_LINE VARCHAR(4000);
   TIMESTAMP VARCHAR2(20);
+  VERSION VARCHAR2(20);
 
   CURSOR C_TAB IS
     SELECT table_name,owner
@@ -78,6 +83,7 @@ EXCEPTION
 END;
 
 BEGIN
+  VERSION := '$version';
   SELECT TO_CHAR(SYSDATE,'YYYY-MM-DD HH24:MI:SS') INTO TIMESTAMP FROM DUAL;
   L_LINE := '* '||TIMESTAMP||' Moving all tables from TS $STS to TS $TTS:';
   dbms_output.put_line(L_LINE);
@@ -87,7 +93,7 @@ BEGIN
     movetab(L_LINE,'TABLESPACE $TTS');
   END LOOP;
   SELECT TO_CHAR(SYSDATE,'YYYY-MM-DD HH24:MI:SS') INTO TIMESTAMP FROM DUAL;
-  dbms_output.put_line('* '||TIMESTAMP||' ...done.');
+  dbms_output.put_line('* '||TIMESTAMP||' TabMove v'||VERSION||' exiting normally.');
 END;
 /
 
