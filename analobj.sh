@@ -16,7 +16,13 @@ if [ -z "$3" ]; then
   echo configure your SYS user / passwd inside this script, then echo call this
   echo script using the following syntax:
   echo ----------------------------------------------------------------------------
-  echo "Syntax: ${SCRIPT} <ORACLE_SID> <Schema> <ObjectType>"
+  echo "Syntax: ${SCRIPT} <ORACLE_SID> <Schema> <ObjectType> [Options]"
+  echo "  Options:"
+  echo "     -c <alternative ConfigFile>"
+  echo "     -d <StartDir>"
+  echo "     -p <Password>"
+  echo "     -s <ORACLE_SID/Connection String for Target DB>"
+  echo "     -u <username>"
   echo ----------------------------------------------------------------------------
   echo "where <ObjectType> is either TABLE, INDEX or ALL."
   echo ============================================================================
@@ -41,7 +47,7 @@ case "$TPREF" in
 esac
 
 # ====================================================[ Script starts here ]===
-version='0.1.1'
+version='0.1.2'
 #cat >dummy.out<<EOF
 $ORACLE_HOME/bin/sqlplus -s /NOLOG <<EOF
 
@@ -60,6 +66,7 @@ DECLARE
  antab NUMBER; anidx NUMBER;
  L_LINE VARCHAR2(255);
  TIMESTAMP VARCHAR2(20);
+ VERSION VARCHAR2(20);
  LOGALL NUMBER;
  CURSOR cur IS
   SELECT owner,table_name
@@ -79,7 +86,18 @@ DECLARE
       AND num_rows  > $NUMROWS
       AND chain_cnt > $CHAINCNT
     ORDER BY table_name;
+ PROCEDURE anobj(statement VARCHAR2, ttype VARCHAR2, tname VARCHAR2) IS
+   BEGIN
+     EXECUTE IMMEDIATE statement;
+   EXCEPTION
+     WHEN OTHERS THEN
+       SELECT TO_CHAR(SYSDATE,'YYYY-MM-DD HH24:MI:SS') INTO TIMESTAMP FROM DUAL;
+       L_LINE := '! '||TIMESTAMP||' Analyzing '||ttype||' "'||tname||
+                 ' failed ('||SQLERRM||')';
+       dbms_output.put_line(L_LINE);
+   END;
 BEGIN
+ VERSION := '$version';
  LOGALL := $LOGALL;
  IF LOWER('$OBJECTTYPE') = 'all' THEN
    antab := 1; anidx := 1;
@@ -92,16 +110,16 @@ BEGIN
  END IF;
   SELECT TO_CHAR(SYSDATE,'YYYY-MM-DD HH24:MI:SS') INTO TIMESTAMP FROM DUAL;
   L_LINE := CHR(10)||'* '||TIMESTAMP||
-            ' $CALCSTAT statistics for $OBJECTTYPE on $SCHEMA...';
+            ' $CALCSTAT statistics for $OBJECTTYPE objects on $SCHEMA...';
   dbms_output.put_line(L_LINE);
   IF antab = 1 THEN
     FOR rec IN cur LOOP
-      statement := 'ANALYZE TABLE '||rec.owner||'.'||rec.table_name||' $CALCSTAT STATISTICS';
+      statement := 'ANALYZE TABLE "'||rec.owner||'"."'||rec.table_name||'" $CALCSTAT STATISTICS';
       IF LOGALL = 1 THEN
         SELECT TO_CHAR(SYSDATE,'YYYY-MM-DD HH24:MI:SS') INTO TIMESTAMP FROM DUAL;
         dbms_output.put_line('+ '||TIMESTAMP||' '||statement);
       END IF;
-      EXECUTE IMMEDIATE statement;
+      anobj(statement,'table',rec.owner||'.'||rec.table_name);
     END LOOP;
     L_LINE := CHR(10)||'List of tables with chained/migrated rows for schema "$SCHEMA", which '||CHR(10)||
               'have at least "$NUMROWS lines" and "$CHAINCNT chains":'||CHR(10);
@@ -117,13 +135,19 @@ BEGIN
   END IF;
   IF anidx = 1 THEN
     FOR rec IN icur LOOP
-      statement := 'ANALYZE INDEX '||rec.owner||'.'||rec.index_name||' COMPUTE STATISTICS';
+      statement := 'ANALYZE INDEX "'||rec.owner||'"."'||rec.index_name||'" COMPUTE STATISTICS';
       IF LOGALL = 1 THEN
         SELECT TO_CHAR(SYSDATE,'YYYY-MM-DD HH24:MI:SS') INTO TIMESTAMP FROM DUAL;
         dbms_output.put_line('+ '||TIMESTAMP||' '||statement);
       END IF;
-      EXECUTE IMMEDIATE statement;
+      anobj(statement,'index',rec.owner||'.'||rec.index_name);
     END LOOP;
   END IF;
+  SELECT TO_CHAR(SYSDATE,'YYYY-MM-DD HH24:MI:SS') INTO TIMESTAMP FROM DUAL;
+  dbms_output.put_line('* '||TIMESTAMP||' Analyze v'||VERSION||' completed.');
+EXCEPTION
+  WHEN OTHERS THEN
+    SELECT TO_CHAR(SYSDATE,'YYYY-MM-DD HH24:MI:SS') INTO TIMESTAMP FROM DUAL;
+    dbms_output.put_line('! '||TIMESTAMP||' Analyze failed ('||SQLERRM||')');
 END;
 /

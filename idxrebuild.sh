@@ -43,7 +43,7 @@ case "$TPREF" in
 esac
 
 # ====================================================[ Script starts here ]===
-version='0.1.2'
+version='0.1.3'
 $ORACLE_HOME/bin/sqlplus -s /NOLOG <<EOF
 
 CONNECT $user/$password@$1
@@ -92,16 +92,16 @@ BEGIN
     L_LINE := '* '||TIMESTAMP||' Rebuilding all invalid indices in Instance "$ORACLE_SID":';
     dbms_output.put_line(L_LINE);
     FOR Rec_INDEX IN C_INDEX_ALL LOOP
-      L_LINE := ' ALTER INDEX '||Rec_INDEX.owner||'.'||Rec_INDEX.index_name||
-                ' REBUILD';
+      L_LINE := ' ALTER INDEX "'||Rec_INDEX.owner||'"."'||Rec_INDEX.index_name||
+                '" REBUILD';
       moveidx(L_LINE);
     END LOOP;
   ELSE
     L_LINE := '* '||TIMESTAMP||' Rebuilding all invalid indices in TS $STS:';
     dbms_output.put_line(L_LINE);
     FOR Rec_INDEX IN C_INDEX LOOP
-      L_LINE := ' ALTER INDEX '||Rec_INDEX.owner||'.'||Rec_INDEX.index_name||
-                ' REBUILD';
+      L_LINE := ' ALTER INDEX "'||Rec_INDEX.owner||'"."'||Rec_INDEX.index_name||
+                '" REBUILD';
       moveidx(L_LINE);
     END LOOP;
   END IF;

@@ -17,3 +17,7 @@ v0.1.1 (26.01.2004)
   So from now on "globalconf" should be the only file the user has to edit.
 + analobj.sh now optionally outputs complete log (logging all ANALYZE
   statements as well)
+
+v0.1.2
+-------------------
+! all: scripts crashed on objects with names using mixed case

@@ -39,7 +39,7 @@ case "$TPREF" in
 esac
 
 # ====================================================[ Script starts here ]===
-version='0.1.2'
+version='0.1.3'
 $ORACLE_HOME/bin/sqlplus -s /NOLOG <<EOF
 
 CONNECT $user/$password@$1
@@ -88,8 +88,8 @@ BEGIN
   L_LINE := '* '||TIMESTAMP||' Moving all tables from TS $STS to TS $TTS:';
   dbms_output.put_line(L_LINE);
   FOR Rec_Tab IN C_TAB LOOP
-    L_LINE := ' ALTER TABLE '||Rec_Tab.owner||'.'||Rec_Tab.table_name||
-              ' MOVE ';
+    L_LINE := ' ALTER TABLE "'||Rec_Tab.owner||'"."'||Rec_Tab.table_name||
+              '" MOVE ';
     movetab(L_LINE,'TABLESPACE $TTS');
   END LOOP;
   SELECT TO_CHAR(SYSDATE,'YYYY-MM-DD HH24:MI:SS') INTO TIMESTAMP FROM DUAL;

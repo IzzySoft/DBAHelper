@@ -39,7 +39,7 @@ case "$TPREF" in
 esac
 
 # ====================================================[ Script starts here ]===
-version='0.1.4'
+version='0.1.5'
 $ORACLE_HOME/bin/sqlplus -s /NOLOG <<EOF
 
 CONNECT $user/$password@$1
@@ -89,8 +89,8 @@ BEGIN
   L_LINE := '* '||TIMESTAMP||' Moving all indices from TS $STS to TS $TTS:';
   dbms_output.put_line(L_LINE);
   FOR Rec_INDEX IN C_INDEX LOOP
-    L_LINE := ' ALTER INDEX '||Rec_INDEX.owner||'.'||Rec_INDEX.index_name||
-              ' REBUILD TABLESPACE $TTS';
+    L_LINE := ' ALTER INDEX "'||Rec_INDEX.owner||'"."'||Rec_INDEX.index_name||
+              '" REBUILD TABLESPACE $TTS';
     moveidx(L_LINE);
   END LOOP;
   SELECT TO_CHAR(SYSDATE,'YYYY-MM-DD HH24:MI:SS') INTO TIMESTAMP FROM DUAL;
