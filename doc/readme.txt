@@ -74,9 +74,16 @@ All scripts run via Sql*Plus and use its SPOOL command to log their activities.
    scripts. We have to do so - no "CONNECT /" will work with remote databases
    for security reasons (although there is a way to do so, this is not
    recommended)
-3. See the "Configuration section" of each script whether you need to adjust
-   anything else. Usually there's no need for. Don't change things you are not
-   sure about (or be aware of side effects ;)
+3. See the other options whether you need to adjust anything else. Usually
+   there's no need for. Don't change things you are not sure about (or be aware
+   of side effects ;)
+
+The "globalconf" file should be the only one you need to edit. All options that
+are user-configurable (and not auto-adjusted or calculated by the scripts
+themselves) are now provided here. Since this config file will be executed as
+Shell script, we have to stick to Shell syntax here. Amongst other things this
+means: no blanks next to the "=" sign, or the value given will not be assigned
+to the variable.
 
 Provided that your Oracle environment is set up properly, you should no be able
 to run the scripts.
