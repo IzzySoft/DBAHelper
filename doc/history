@@ -18,7 +18,7 @@ v0.1.1 (26.01.2004)
 + analobj.sh now optionally outputs complete log (logging all ANALYZE
   statements as well)
 
-v0.1.2
+v0.1.2 (06.02.2004)
 -------------------
 ! all: scripts crashed on objects with names using mixed case
 + all: enhanced command line syntax
