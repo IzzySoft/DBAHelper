@@ -24,19 +24,18 @@ if [ -z "$3" ]; then
 fi
 
 # =================================================[ Configuration Section ]===
+# Read the global config
+BINDIR=${0%/*}
+. $BINDIR/globalconf $*
 # Eval params
-export ORACLE_SID=$1
 STS=$2
 TTS=$3
-# login information
-user=sys
-password="pyha#"
 # name of the file to write the log to (or 'OFF' for no log). This file will
 # be overwritten without warning!
 SPOOL="tabmov__$1-$2-$3.spool"
 
 # ====================================================[ Script starts here ]===
-version='0.1.0'
+version='0.1.1'
 $ORACLE_HOME/bin/sqlplus -s /NOLOG <<EOF
 
 CONNECT $user/$password@$1
@@ -51,6 +50,7 @@ SPOOL $SPOOL
 
 DECLARE
   L_LINE VARCHAR(4000);
+  TIMESTAMP VARCHAR2(20);
 
   CURSOR C_TAB IS
     SELECT table_name,owner
@@ -59,24 +59,35 @@ DECLARE
 
 PROCEDURE movetab (line IN VARCHAR2, tts IN VARCHAR2) IS
 BEGIN
-  dbms_output.put_line(line|| 'ONLINE ' ||tts);
+  SELECT TO_CHAR(SYSDATE,'YYYY-MM-DD HH24:MI:SS') INTO TIMESTAMP FROM DUAL;
+  dbms_output.put_line('+ '||TIMESTAMP||line|| 'ONLINE ' ||tts);
   EXECUTE IMMEDIATE line||'ONLINE '||tts;
 EXCEPTION
   WHEN OTHERS THEN
-    dbms_output.put_line(line||tts);
-    EXECUTE IMMEDIATE line||tts;
+    BEGIN
+      SELECT TO_CHAR(SYSDATE,'YYYY-MM-DD HH24:MI:SS') INTO TIMESTAMP FROM DUAL;
+      dbms_output.put_line('- '||TIMESTAMP||SQLERRM);
+      dbms_output.put_line('+ '||TIMESTAMP||line||tts);
+      dbms_output.put_line(line||tts);
+      EXECUTE IMMEDIATE line||tts;
+    EXCEPTION
+      WHEN OTHERS THEN
+        SELECT TO_CHAR(SYSDATE,'YYYY-MM-DD HH24:MI:SS') INTO TIMESTAMP FROM DUAL;
+        dbms_output.put_line('! '||TIMESTAMP||' ALTER TABLE failed ('||SQLERRM||')');
+    END;
 END;
 
 BEGIN
-  L_LINE := 'Moving all tables from TS $STS to TS $TTS:';
+  SELECT TO_CHAR(SYSDATE,'YYYY-MM-DD HH24:MI:SS') INTO TIMESTAMP FROM DUAL;
+  L_LINE := '* '||TIMESTAMP||' Moving all tables from TS $STS to TS $TTS:';
   dbms_output.put_line(L_LINE);
   FOR Rec_Tab IN C_TAB LOOP
     L_LINE := ' ALTER TABLE '||Rec_Tab.owner||'.'||Rec_Tab.table_name||
               ' MOVE ';
     movetab(L_LINE,'TABLESPACE $TTS');
   END LOOP;
-  L_LINE := '...done.';
-  dbms_output.put_line(L_LINE);
+  SELECT TO_CHAR(SYSDATE,'YYYY-MM-DD HH24:MI:SS') INTO TIMESTAMP FROM DUAL;
+  dbms_output.put_line('* '||TIMESTAMP||' ...done.');
 END;
 /
 

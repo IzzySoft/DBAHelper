@@ -24,19 +24,18 @@ if [ -z "$3" ]; then
 fi
 
 # =================================================[ Configuration Section ]===
+# Read the global config
+BINDIR=${0%/*}
+. $BINDIR/globalconf $*
 # Eval params
-export ORACLE_SID=$1
 STS=$2
 TTS=$3
-# login information
-user=sys
-password="pyha#"
 # name of the file to write the log to (or 'OFF' for no log). This file will
 # be overwritten without warning!
 SPOOL="idxrep__$1-$2-$3.spool"
 
 # ====================================================[ Script starts here ]===
-version='0.1.2'
+version='0.1.3'
 $ORACLE_HOME/bin/sqlplus -s /NOLOG <<EOF
 
 CONNECT $user/$password@$1
@@ -56,7 +55,7 @@ DECLARE
   CURSOR C_INDEX IS
     SELECT index_name,owner
       FROM all_indexes
-     WHERE lower(index_type)='normal'
+     WHERE (lower(index_type)='normal' OR lower(index_type)='bitmap')
        AND lower(tablespace_name)=lower('$STS');
 
 PROCEDURE moveidx (line IN VARCHAR2) IS
@@ -68,11 +67,14 @@ BEGIN
 EXCEPTION
   WHEN OTHERS THEN
     BEGIN
-      dbms_output.put_line('  '||TIMESTAMP||' '||line);
+      SELECT TO_CHAR(SYSDATE,'YYYY-MM-DD HH24:MI:SS') INTO TIMESTAMP FROM DUAL;
+      dbms_output.put_line('- '||TIMESTAMP||' '||SQLERRM);
+      dbms_output.put_line(CHR(32)||' '||TIMESTAMP||' '||line);
       EXECUTE IMMEDIATE line;
     EXCEPTION
       WHEN OTHERS THEN
-        dbms_output.put_line('! '||TIMESTAMP||' ALTER INDEX failed!');
+        SELECT TO_CHAR(SYSDATE,'YYYY-MM-DD HH24:MI:SS') INTO TIMESTAMP FROM DUAL;
+        dbms_output.put_line('! '||TIMESTAMP||' ALTER INDEX failed ('||SQLERRM||')');
     END;
 END;
 
