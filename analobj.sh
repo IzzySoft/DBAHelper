@@ -9,13 +9,13 @@
 if [ -z "$3" ]; then
   SCRIPT=${0##*/}
   echo
-  echo ============================================================================
-  echo "${SCRIPT}       (c) 2003 by Itzchak Rehberg & IzzySoft (devel@izzysoft.de)"
-  echo ----------------------------------------------------------------------------
-  echo This script is intended to analyze objects for a given schema. First
-  echo configure your SYS user / passwd inside this script, then echo call this
-  echo script using the following syntax:
-  echo ----------------------------------------------------------------------------
+  echo "============================================================================"
+  echo "${SCRIPT}  (c) 2003-2004 by Itzchak Rehberg & IzzySoft (devel@izzysoft.de)"
+  echo "----------------------------------------------------------------------------"
+  echo "This script is intended to analyze objects for a given schema. First"
+  echo "configure your SYS user / passwd in the 'globalconf' file, then call this"
+  echo "script using the following syntax:"
+  echo "----------------------------------------------------------------------------"
   echo "Syntax: ${SCRIPT} <ORACLE_SID> <Schema> <ObjectType> [Options]"
   echo "  Options:"
   echo "     -c <alternative ConfigFile>"
@@ -23,9 +23,9 @@ if [ -z "$3" ]; then
   echo "     -p <Password>"
   echo "     -s <ORACLE_SID/Connection String for Target DB>"
   echo "     -u <username>"
-  echo ----------------------------------------------------------------------------
+  echo "----------------------------------------------------------------------------"
   echo "where <ObjectType> is either TABLE, INDEX or ALL."
-  echo ============================================================================
+  echo "============================================================================"
   echo
   exit 1
 fi

@@ -41,4 +41,4 @@ TR_USEDINC=0
 # which value to add to PCTFREE
 TR_FREEINC=10
 # min pct of chained rows a table must have to be re-organized
-TR_CHAINPCT=3
+TR_CHAINPCT=7

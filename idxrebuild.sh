@@ -10,20 +10,20 @@
 if [ -z "$1" ]; then
   SCRIPT=${0##*/}
   echo
-  echo ============================================================================
-  echo "${SCRIPT}       (c) 2003 by Itzchak Rehberg & IzzySoft (devel@izzysoft.de)"
-  echo ----------------------------------------------------------------------------
-  echo This script is intended to rebuild all invalid indexes for a given
-  echo TableSpace. First configure your SYS user / passwd inside this script, then
-  echo call this script using the following syntax:
-  echo ----------------------------------------------------------------------------
+  echo "============================================================================"
+  echo "${SCRIPT}  (c) 2003-2004 by Itzchak Rehberg & IzzySoft (devel@izzysoft.de)"
+  echo "----------------------------------------------------------------------------"
+  echo "This script is intended to rebuild all invalid indexes for a given"
+  echo "TableSpace. First configure your SYS user / passwd in the 'globalconf' file,"
+  echo "then call this script using the following syntax:"
+  echo "----------------------------------------------------------------------------"
   echo "Syntax: ${SCRIPT} <ORACLE_SID> [TS] [Options]"
   echo "  Options:"
   echo "     -c <alternative ConfigFile>"
   echo "     -p <Password>"
   echo "     -s <ORACLE_SID/Connection String for Target DB>"
   echo "     -u <username>"
-  echo ============================================================================
+  echo "============================================================================"
   echo
   exit 1
 fi
