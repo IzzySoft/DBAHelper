@@ -13,6 +13,6 @@ v0.1.1
   specified, all tablespaces (including SYSTEM!) are checked.
 ! idxrebuild: fixed condition for "STATUS" (now skipping 'N/A' as well, since
   rebuilding partitioned indices requires special treatment)
-* analobj: moved configuration options from analobj.sh to globalconf
+* analobj,idxmove: moved configuration options from analobj.sh to globalconf
 + analobj.sh now optionally outputs complete log (logging all ANALYZE
   statements as well)
