@@ -7,12 +7,13 @@ v0.1.0 (15.01.2004)
 -------------------
 * initial version (first release)
 
-v0.1.1
+v0.1.1 (26.01.2004)
 -------------------
 + idxrebuild: the second parameter (tablespace name) now is optional. If not
   specified, all tablespaces (including SYSTEM!) are checked.
 ! idxrebuild: fixed condition for "STATUS" (now skipping 'N/A' as well, since
   rebuilding partitioned indices requires special treatment)
-* analobj,idxmove: moved configuration options from analobj.sh to globalconf
+* all: moved remaining configuration options from analobj.sh to globalconf.
+  So from now on "globalconf" should be the only file the user has to edit.
 + analobj.sh now optionally outputs complete log (logging all ANALYZE
   statements as well)
