@@ -11,3 +11,5 @@ v0.1.1
 -------------------
 + idxrebuild: the second parameter (tablespace name) now is optional. If not
   specified, all tablespaces (including SYSTEM!) are checked.
+! idxrebuild: fixed condition for "STATUS" (now skipping 'N/A' as well, since
+  rebuilding partitioned indices requires special treatment)

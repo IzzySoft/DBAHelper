@@ -54,14 +54,12 @@ DECLARE
   CURSOR C_INDEX IS
     SELECT index_name,owner
       FROM all_indexes
-     WHERE (index_type='NORMAL' OR index_type='BITMAP')
-       AND tablespace_name=upper('$STS')
-       AND status<>'VALID';
+     WHERE tablespace_name=upper('$STS')
+       AND status NOT IN ('VALID','N/A');
   CURSOR C_INDEX_ALL IS
     SELECT index_name,owner
       FROM all_indexes
-     WHERE (index_type='NORMAL' OR index_type='BITMAP')
-       AND status<>'VALID';
+     WHERE status NOT IN ('VALID','N/A');
 
 PROCEDURE moveidx (line IN VARCHAR2) IS
   TIMESTAMP VARCHAR2(20);
