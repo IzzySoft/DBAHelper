@@ -7,7 +7,7 @@
 #                                                              Itzchak Rehberg
 #
 #
-if [ -z "$2" ]; then
+if [ -z "$1" ]; then
   SCRIPT=${0##*/}
   echo
   echo ============================================================================
@@ -17,7 +17,7 @@ if [ -z "$2" ]; then
   echo TableSpace. First configure your SYS user / passwd inside this script, then
   echo call this script using the following syntax:
   echo ----------------------------------------------------------------------------
-  echo "Syntax: ${SCRIPT} <ORACLE_SID> <TS>"
+  echo "Syntax: ${SCRIPT} <ORACLE_SID> [TS]"
   echo ============================================================================
   echo
   exit 1
@@ -29,7 +29,6 @@ BINDIR=${0%/*}
 . $BINDIR/globalconf $*
 # Eval params
 STS=$2
-TTS=$3
 # name of the file to write the log to (or 'OFF' for no log). This file will
 # be overwritten without warning!
 SPOOL="idxrep__$1-$2-$3.spool"
@@ -55,8 +54,13 @@ DECLARE
   CURSOR C_INDEX IS
     SELECT index_name,owner
       FROM all_indexes
-     WHERE (lower(index_type)='normal' OR lower(index_type)='bitmap')
-       AND lower(tablespace_name)=lower('$STS')
+     WHERE (index_type='NORMAL' OR index_type='BITMAP')
+       AND tablespace_name=upper('$STS')
+       AND status<>'VALID';
+  CURSOR C_INDEX_ALL IS
+    SELECT index_name,owner
+      FROM all_indexes
+     WHERE (index_type='NORMAL' OR index_type='BITMAP')
        AND status<>'VALID';
 
 PROCEDURE moveidx (line IN VARCHAR2) IS
@@ -75,13 +79,23 @@ END;
 
 BEGIN
   SELECT TO_CHAR(SYSDATE,'YYYY-MM-DD HH24:MI:SS') INTO TIMESTAMP FROM DUAL;
-  L_LINE := '* '||TIMESTAMP||' Rebuilding all invalid indices in TS $STS:';
-  dbms_output.put_line(L_LINE);
-  FOR Rec_INDEX IN C_INDEX LOOP
-    L_LINE := ' ALTER INDEX '||Rec_INDEX.owner||'.'||Rec_INDEX.index_name||
-              ' REBUILD';
-    moveidx(L_LINE);
-  END LOOP;
+  IF NVL(LENGTH('$STS'),0) = 0 THEN
+    L_LINE := '* '||TIMESTAMP||' Rebuilding all invalid indices in Instance "$ORACLE_SID":';
+    dbms_output.put_line(L_LINE);
+    FOR Rec_INDEX IN C_INDEX_ALL LOOP
+      L_LINE := ' ALTER INDEX '||Rec_INDEX.owner||'.'||Rec_INDEX.index_name||
+                ' REBUILD';
+      moveidx(L_LINE);
+    END LOOP;
+  ELSE
+    L_LINE := '* '||TIMESTAMP||' Rebuilding all invalid indices in TS $STS:';
+    dbms_output.put_line(L_LINE);
+    FOR Rec_INDEX IN C_INDEX LOOP
+      L_LINE := ' ALTER INDEX '||Rec_INDEX.owner||'.'||Rec_INDEX.index_name||
+                ' REBUILD';
+      moveidx(L_LINE);
+    END LOOP;
+  END IF;
   SELECT TO_CHAR(SYSDATE,'YYYY-MM-DD HH24:MI:SS') INTO TIMESTAMP FROM DUAL;
   L_LINE := '* '||TIMESTAMP||'...done.';
   dbms_output.put_line(L_LINE);
