@@ -1,0 +1,46 @@
+#!/bin/bash
+#
+# $Id$
+#
+# =============================================================================
+# Setup configuration for tabmove.sh, idxmove.sh, idxrebuild.sh and
+# analobj.sh
+# -----------------------------------------------------------------------------
+#                                                              Itzchak Rehberg
+
+export ORACLE_SID=$1
+FEXT="$1-$2-$3"
+
+# ------------------------------------------[ process command line options ]---
+while [ -n "$1" ] ; do
+  case "$1" in
+    -s) shift; ORACLE_CONNECT=$1;;
+    -u) shift; username=$1;;
+    -p) shift; passwd=$1;;
+    -c) shift; CONFIG=$1;;
+    -f) shift; DEFPREF=$1;;
+    -l) shift; LOGAL=$1;;
+  esac
+  shift
+done
+. $CONFIG $ARGS
+if [ -z "$ORACLE_CONNECT" ]; then
+  ORACLE_CONNECT=$ORACLE_SID
+fi
+if [ -n "$username" ]; then
+  user=$username
+fi
+if [ -n "$passwd" ]; then
+  password=$passwd
+fi
+if [ -n "$LOGAL" ]; then
+  LOGALL=$LOGAL
+fi
+
+# -----------[ name of the file to write the log to (or 'OFF' for no log) ]---
+TPREF=`echo $PREFIX | tr 'a-z' 'A-Z'`
+case "$TPREF" in
+  OFF) SPOOL=OFF;;
+  DEFAULT) SPOOL="${DEFPREF}_${FEXT}.spool";;
+  *) SPOOL="${PREFIX}_${FEXT}.spool";;
+esac

@@ -19,7 +19,7 @@ if [ -z "$3" ]; then
   echo "Syntax: ${SCRIPT} <ORACLE_SID> <Schema> <ObjectType> [Options]"
   echo "  Options:"
   echo "     -c <alternative ConfigFile>"
-  echo "     -d <StartDir>"
+  echo "     -l <LOGALL value (0|1)>"
   echo "     -p <Password>"
   echo "     -s <ORACLE_SID/Connection String for Target DB>"
   echo "     -u <username>"
@@ -31,23 +31,17 @@ if [ -z "$3" ]; then
 fi
 
 # =================================================[ Configuration Section ]===
-# Read the global config
-BINDIR=${0%/*}
-. $BINDIR/globalconf $*
 # Eval params
-export ORACLE_SID=$1
 SCHEMA=$2
 OBJECTTYPE=$3
-# name of the file to write the log to (or 'OFF' for no log)
-TPREF=`echo $PREFIX | tr 'a-z' 'A-Z'`
-case "$TPREF" in
-  OFF) SPOOL=OFF;;
-  DEFAULT) SPOOL="analobj__$1-$2-$3.spool";;
-  *) SPOOL="${PREFIX}__$1-$2-$3.spool";;
-esac
+
+# Read the global config
+BINDIR=${0%/*}
+CONFIG=$BINDIR/globalconf
+. $BINDIR/configure $* -f analobj
 
 # ====================================================[ Script starts here ]===
-version='0.1.2'
+version='0.1.3'
 #cat >dummy.out<<EOF
 $ORACLE_HOME/bin/sqlplus -s /NOLOG <<EOF
 

@@ -21,3 +21,4 @@ v0.1.1 (26.01.2004)
 v0.1.2
 -------------------
 ! all: scripts crashed on objects with names using mixed case
++ analobj: enhanced command line syntax; LOGALL can now be overridden on cmdline
