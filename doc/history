@@ -1,0 +1,13 @@
+$Id$
+
+History for DBAHelper
+=====================
+
+v0.1.0 (15.01.2004)
+-------------------
+* initial version (first release)
+
+v0.1.1
+-------------------
++ idxrebuild: the second parameter (tablespace name) now is optional. If not
+  specified, all tablespaces (including SYSTEM!) are checked.
