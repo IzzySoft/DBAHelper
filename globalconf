@@ -1,0 +1,14 @@
+#!/bin/bash
+# $Id$
+#
+# =============================================================================
+# Global configuration for tabmove.sh, idxmove.sh, idxrebuild.sh and
+# analobj.sh
+# -----------------------------------------------------------------------------
+#                                                              Itzchak Rehberg
+#
+# login information
+user=sys
+password="pyha#"
+# Oracle SID
+export ORACLE_SID=$1

@@ -25,13 +25,13 @@ if [ -z "$3" ]; then
 fi
 
 # =================================================[ Configuration Section ]===
+# Read the global config
+BINDIR=${0%/*}
+. $BINDIR/globalconf $*
 # Eval params
 export ORACLE_SID=$1
 SCHEMA=$2
 OBJECTTYPE=$3
-# login information
-user=sys
-password="pyha#"
 # name of the file to write the log to (or 'OFF' for no log). This file will
 # be overwritten without warning!
 SPOOL="analobj__$1-$2-$3.spool"
@@ -39,7 +39,7 @@ SPOOL="analobj__$1-$2-$3.spool"
 NUMROWS=1000
 CHAINCNT=10
 # estimate or compute statistics?
-CALCSTAT="COMPUTE"
+CALCSTAT="ESTIMATE"
 # ====================================================[ Script starts here ]===
 version='0.1.0'
 #cat >dummy.out<<EOF
