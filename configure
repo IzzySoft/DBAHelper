@@ -19,6 +19,7 @@ while [ -n "$1" ] ; do
     -p) shift; passwd=$1;;
     -c) shift; CONFIG=$1;;
     -f) shift; DEFPREF=$1;;
+    -x) shift; FEXT=$1;;
     -l) shift; LOGAL=$1;;
   esac
   shift

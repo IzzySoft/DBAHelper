@@ -143,5 +143,6 @@ EXCEPTION
   WHEN OTHERS THEN
     SELECT TO_CHAR(SYSDATE,'YYYY-MM-DD HH24:MI:SS') INTO TIMESTAMP FROM DUAL;
     dbms_output.put_line('! '||TIMESTAMP||' Analyze failed ('||SQLERRM||')');
+    dbms_output.put_line('! '||TIMESTAMP||' Analyze v'||VERSION||' crashed normally.');
 END;
 /

@@ -17,33 +17,33 @@ if [ -z "$1" ]; then
   echo TableSpace. First configure your SYS user / passwd inside this script, then
   echo call this script using the following syntax:
   echo ----------------------------------------------------------------------------
-  echo "Syntax: ${SCRIPT} <ORACLE_SID> [TS]"
+  echo "Syntax: ${SCRIPT} <ORACLE_SID> [TS] [Options]"
+  echo "  Options:"
+  echo "     -c <alternative ConfigFile>"
+  echo "     -p <Password>"
+  echo "     -s <ORACLE_SID/Connection String for Target DB>"
+  echo "     -u <username>"
   echo ============================================================================
   echo
   exit 1
 fi
 
 # =================================================[ Configuration Section ]===
-# Read the global config
-BINDIR=${0%/*}
-. $BINDIR/globalconf $*
 # Eval params
 STS=$2
 # name of the file to write the log to (or 'OFF' for no log)
 if [ "$2" == "" ]; then
-  suff="all"
+  suff="$1-all"
 else
-  suff="$2"
+  suff="$1-$2"
 fi
-TPREF=`echo $PREFIX | tr 'a-z' 'A-Z'`
-case "$TPREF" in
-  OFF) SPOOL=OFF;;
-  DEFAULT) SPOOL="idxrebuild__$1-$suff.spool";;
-  *) SPOOL="${PREFIX}__$1-$suff.spool";;
-esac
+# Read the global config
+BINDIR=${0%/*}
+CONFIG=$BINDIR/globalconf
+. $BINDIR/configure $* -f idxrebuild -x $suff
 
 # ====================================================[ Script starts here ]===
-version='0.1.3'
+version='0.1.4'
 $ORACLE_HOME/bin/sqlplus -s /NOLOG <<EOF
 
 CONNECT $user/$password@$1
@@ -108,6 +108,11 @@ BEGIN
   SELECT TO_CHAR(SYSDATE,'YYYY-MM-DD HH24:MI:SS') INTO TIMESTAMP FROM DUAL;
   L_LINE := '* '||TIMESTAMP||' IdxRebuild v'||VERSION||' exiting normally.';
   dbms_output.put_line(L_LINE);
+EXCEPTION
+  WHEN OTHERS THEN
+    SELECT TO_CHAR(SYSDATE,'YYYY-MM-DD HH24:MI:SS') INTO TIMESTAMP FROM DUAL;
+    dbms_output.put_line('! '||TIMESTAMP||' Something weird happened ('||SQLERRM||')');
+    dbms_output.put_line('! '||TIMESTAMP||' IdxRebuild v'||VERSION||' crashed normally.');
 END;
 /
 
