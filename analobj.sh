@@ -32,16 +32,16 @@ BINDIR=${0%/*}
 export ORACLE_SID=$1
 SCHEMA=$2
 OBJECTTYPE=$3
-# name of the file to write the log to (or 'OFF' for no log). This file will
-# be overwritten without warning!
-SPOOL="analobj__$1-$2-$3.spool"
-# restrictions: what are the minimal settings to display?
-NUMROWS=1000
-CHAINCNT=10
-# estimate or compute statistics?
-CALCSTAT="ESTIMATE"
+# name of the file to write the log to (or 'OFF' for no log)
+TPREF=`echo $PREFIX | tr 'a-z' 'A-Z'`
+case "$TPREF" in
+  OFF) SPOOL=OFF;;
+  DEFAULT) SPOOL="analobj__$1-$2-$3.spool";;
+  *) SPOOL="${PREFIX}__$1-$2-$3.spool";;
+esac
+
 # ====================================================[ Script starts here ]===
-version='0.1.0'
+version='0.1.1'
 #cat >dummy.out<<EOF
 $ORACLE_HOME/bin/sqlplus -s /NOLOG <<EOF
 
@@ -59,6 +59,8 @@ DECLARE
  statement varchar2(300);
  antab NUMBER; anidx NUMBER;
  L_LINE VARCHAR2(255);
+ TIMESTAMP VARCHAR2(20);
+ LOGALL NUMBER;
  CURSOR cur IS
   SELECT owner,table_name
     FROM all_tables
@@ -78,6 +80,7 @@ DECLARE
       AND chain_cnt > $CHAINCNT
     ORDER BY table_name;
 BEGIN
+ LOGALL := $LOGALL;
  IF LOWER('$OBJECTTYPE') = 'all' THEN
    antab := 1; anidx := 1;
  ELSE
@@ -87,13 +90,20 @@ BEGIN
      antab := 0; anidx := 1;
    END IF;
  END IF;
-  dbms_output.put_line(CHR(10)||'$CALCSTAT statistics for $OBJECTTYPE on $SCHEMA...'||CHR(10));
+  SELECT TO_CHAR(SYSDATE,'YYYY-MM-DD HH24:MI:SS') INTO TIMESTAMP FROM DUAL;
+  L_LINE := CHR(10)||'* '||TIMESTAMP||
+            ' $CALCSTAT statistics for $OBJECTTYPE on $SCHEMA...';
+  dbms_output.put_line(L_LINE);
   IF antab = 1 THEN
     FOR rec IN cur LOOP
       statement := 'ANALYZE TABLE '||rec.owner||'.'||rec.table_name||' $CALCSTAT STATISTICS';
-	  EXECUTE IMMEDIATE statement;
+      IF LOGALL = 1 THEN
+        SELECT TO_CHAR(SYSDATE,'YYYY-MM-DD HH24:MI:SS') INTO TIMESTAMP FROM DUAL;
+        dbms_output.put_line('+ '||TIMESTAMP||' '||statement);
+      END IF;
+      EXECUTE IMMEDIATE statement;
     END LOOP;
-    L_LINE := 'List of tables with chained/migrated rows for schema "$SCHEMA", which '||CHR(10)||
+    L_LINE := CHR(10)||'List of tables with chained/migrated rows for schema "$SCHEMA", which '||CHR(10)||
               'have at least "$NUMROWS lines" and "$CHAINCNT chains":'||CHR(10);
     dbms_output.put_line(L_LINE);
     dbms_output.put_line( '+--------------------------------+-----------------+---------+-------+' );
@@ -108,7 +118,11 @@ BEGIN
   IF anidx = 1 THEN
     FOR rec IN icur LOOP
       statement := 'ANALYZE INDEX '||rec.owner||'.'||rec.index_name||' COMPUTE STATISTICS';
-	  EXECUTE IMMEDIATE statement;
+      IF LOGALL = 1 THEN
+        SELECT TO_CHAR(SYSDATE,'YYYY-MM-DD HH24:MI:SS') INTO TIMESTAMP FROM DUAL;
+        dbms_output.put_line('+ '||TIMESTAMP||' '||statement);
+      END IF;
+      EXECUTE IMMEDIATE statement;
     END LOOP;
   END IF;
 END;

@@ -12,3 +12,22 @@ user=sys
 password="pyha#"
 # Oracle SID
 export ORACLE_SID=$1
+# Prefix for the log file to write to. The parameters passed to the script will
+# be used to make the output name somehow unique. So with PREFIX set to DEFAULT,
+# an example file name has the syntax "tabmov-$1-$2-$3.spool" for the script
+# tabmove.sh
+# Valid values are:
+#  OFF     -- no log file will be written
+#  DEFAULT -- script name will be used as prefix
+# all other values will be understand literally. Since we use SQL*Plus and
+# its SPOOL facility, existing files will be overwritten without warning!
+PREFIX=DEFAULT
+
+# ===============================================================[ analobj ]===
+# restrictions: what are the minimal settings to display?
+NUMROWS=1000
+CHAINCNT=10
+# estimate or compute statistics?
+CALCSTAT="ESTIMATE"
+# Log all analyze statements as well (1) or only results (0)?
+LOGALL=0
