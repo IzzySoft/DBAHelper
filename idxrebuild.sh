@@ -34,7 +34,7 @@ STS=$2
 SPOOL="idxrep__$1-$2-$3.spool"
 
 # ====================================================[ Script starts here ]===
-version='0.1.0'
+version='0.1.1'
 $ORACLE_HOME/bin/sqlplus -s /NOLOG <<EOF
 
 CONNECT $user/$password@$1
