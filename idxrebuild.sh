@@ -30,12 +30,12 @@ fi
 
 # =================================================[ Configuration Section ]===
 # Eval params
-STS=$2
-# name of the file to write the log to (or 'OFF' for no log)
-if [ "$2" == "" ]; then
-  suff="$1-all"
-else
+param2=`echo $2|cut -c1-1`
+if [ "$param2" != "-" -a -n "$2" ]; then
+  STS=$2
   suff="$1-$2"
+else
+  suff="$1-all"
 fi
 # Read the global config
 BINDIR=${0%/*}
@@ -43,7 +43,7 @@ CONFIG=$BINDIR/globalconf
 . $BINDIR/configure $* -f idxrebuild -x $suff
 
 # ====================================================[ Script starts here ]===
-version='0.1.4'
+version='0.1.5'
 $ORACLE_HOME/bin/sqlplus -s /NOLOG <<EOF
 
 CONNECT $user/$password@$ORACLE_CONNECT

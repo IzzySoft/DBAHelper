@@ -28,3 +28,5 @@ v0.1.2 (06.02.2004)
 v0.1.3
 -------------------
 + added documentation in HTML format
+* updated most script headers concerning the "Usage"/"Syntax" output
+! idxrebuild: fixed problem with optional 2nd parameter
