@@ -1,0 +1,189 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html><head>
+	<title>DBAHelper Dokumentation: Usage</title>
+    <meta name="Author" content="Andreas Itzchak Rehberg (devel@izzysoft.de)">
+    <meta name="Description" content="DBAHelper Documentation: Usage">
+    <meta name="Keywords" content="Oracle, DBA, Scripts, Documentation">
+    <meta http-equiv="Content-Type" content="text/html; charset=iso-8859-15">
+    <link rel="stylesheet" type="text/css" href="main.css">
+</head>
+<body>
+<table align="center" width="95%" border="0">
+ <tr><th>Usage</th></tr>
+ <tr><th class="th_sub"><a name="cmdline"></a>Command line</th></tr>
+ <tr><td class="text">
+  Called without any parameter, the scripts display a short help page concerning
+  their command line parameters. The minimal requirement for all scripts is the
+  <code>ORACLE_SID</code> - some scripts may need even more parameters.
+  More command line parameters available for all scripts and listed in the table
+  below. Those parameters that not apply to all scripts are described for the
+  affected scripts in separate sections.
+ </td></tr>
+ <tr><td class="text">
+  <table align="center" width="95%">
+   <tr><th class="th_sub2">Parameter</th><th class="th_sub2">Description</th></tr>
+   <tr><td class="td_name" colspan="2" align="center">Common parameters</td></tr>
+   <tr><td class="td_name"><code>-c</code></td>
+       <td class="text">alternative configuration file to use. You may create
+           different configurations according to e.g. special cases (e.g. for
+           different database instances), and use them specifying the corresponding
+           config file at the command line.</td></tr>
+    <tr><td class="td_name"><code>-u</code></td>
+        <td class="text">User name for the SQL <code>CONNECT</code> statement</td></tr>
+    <tr><td class="td_name"><code>-p</code></td>
+        <td class="text">Password for the SQL <code>CONNECT</code> statement</td></tr>
+    <tr><td class="td_name"><code>-s</code></td>
+        <td class="text">Connection string for the SQL <code>CONNECT</code>
+            statement (if different from the <code>ORACLE_SID</code>). This
+            is used for the SQL <code>CONNECT</code> string only, while the
+            <code>ORACLE_SID</code> is also used for the log file name.</td></tr>
+   <tr><td class="td_name" colspan="2" align="center"><code>analobj.sh</code> and <code>tabreorg.sh</code> parameters</td></tr>
+    <tr><td class="td_name"><code>-l</code></td>
+        <td class="text">Override the <code>LOGALL</code> config variable. Specify
+            1 (= On) or 0 (=off) as value.</td></tr>
+   <tr><td class="td_name" colspan="2" align="center"><code>tabreorg.sh</code> parameters</td></tr>
+    <tr><td class="td_name"><code>-o</code></td>
+        <td class="text">Only work on objects of this owner</td></tr>
+    <tr><td class="td_name"><code>-t</code></td>
+        <td class="text">Override the <code>TR_TMP</code> config variable (specifies
+            the tablespace to temporarily move tables to for export/import)</td></tr>
+  </table>
+ </td></tr>
+ <tr><td class="text">
+  An example command line could look like this:
+  <table align="center" border="0"><tr><td>
+  <div class="code" style="width:32em">
+    ./tabreorg.sh oradb -c my.config -l 1 -o peter
+  </div>
+  </td></tr></table>
+ </td></tr>
+
+ <tr><th class="th_sub"><a name="analobj"></a>analobj.sh</th></tr>
+ <tr><td class="text">
+  <p>As already mentioned in the introduction, <code>analobj.sh</code> is intended
+  to <code>anal</code>yze <code>obj</code>ects in a given schema. This is
+  necessary to provide the Cost Based Optimizer (CBO) with necessary data for
+  indices and tables - but for tables it is also good to know about their
+  fragmentation, i.e. the count of chained or migrated rows. With too many
+  migrated rows, Oracle may be chasing blocks when fetching rows: while an
+  index tells the requesting process, the wanted table row is stored in block X,
+  in block X we find the information "look also in block Y" - and this only since
+  there was not enough free space available on an update, since the block was
+  already filled up.</p>
+  <p>To get rid of this ugly situation, we need to re-organize the table.
+  <a href="#tabreorg"><code>tabreorg.sh</code></a> helps you to do this automatically.</p>
+  <p><code>analobj.sh</code> expects at least 3 command line options:<ol>
+   <li>the <code>ORACLE_SID</code></li>
+   <li>the schema to analyze</li>
+   <li>the object type to analyze</li>
+  </ol>Valid object types are <code>table</code>, <code>index</code> and
+  <code>all</code>, where "all" means "tables and indices". If you do the analyze
+  for the CBO, you should analyze "all" objects. If you are just going to identify
+  tables with row migration, you may want to analyze "tables" only. I have no
+  idea why someone may want to analyze indices only - but for the sake of
+  completeness I included this possibility as well.</p>
+ </td></tr>
+
+ <tr><th class="th_sub"><a name="idxmove"></a>idxmove.sh</th></tr>
+ <tr><td class="text">
+  <p>Indices are a good invention to boost performance for many queries. But the
+  best boost in this context can be reached by having the indices stored on a
+  volume (i.e. hard disk) other than the data itself, since this way we can save
+  even more disk IO.</p>
+  <p>But not all applications (and developers) take enough care about using
+  different tablespaces for data and indices respectively. Now Oracle has a
+  <code>default tablespace</code> clause in the <code>CREATE USER</code> and
+  <code>ALTER USER</code> statements, and since Oracle 9 a <code>default
+  temporary tablespace</code> as well - but no such thing as a <code>default index
+  tablespace</code>, unfortunately. So on a <code>CREATE INDEX</code> command
+  without explicitely defining a tablespace for it, the index will be created
+  within the users default tabelspace, as well as the tables etc.pp.</p>
+  <p>So that's the time of <code>idxmove.sh</code>: it looks in the <code>SourceTS</code>
+  whether there are any indices contained, and if so, moves them into the
+  <code>TargetTS</code> using the <code>ALTER INDEX..MOVE</code> command. If
+  possible, the move will be done with the <code>ONLINE</code> option, so no
+  running session will be affected by this process.</p>
+  <p><code>idxmove.sh</code> expects at least 3 parameters:<ol>
+   <li>the <code>ORACLE_SID</code> (as usual)</li>
+   <li>the <code>SourceTS</code> to look for the indices to be moved</li>
+   <li>the <code>TargetTS</code> to move the indices to</li>
+  </ol>For more options, see the <a href="#cmdline">command line</a> options
+  above.</p>
+ </td></tr>
+
+ <tr><th class="th_sub"><a name="idxrebuild"></a>idxrebuild.sh</th></tr>
+ <tr><td class="text">
+  <p>If indices become invalid, you may notice strong performance loss for
+  applications that were using it due to Oracle executing Full Table Scans (FTS)
+  instead of finding the row id(s) via the index. In some cases, the entire
+  application may stop working (or at least it may seem so) and become unusable
+  due to its bad performance. This is an intolerable situation - but thanks to
+  <code>idxrebuild.sh</code> we can overcome it quickly and easy:</p>
+  <p><code>idxrebuild.sh</code> queries the system views for indices that are
+  in unusable state and then tries to rebuild them using the <code>ALTER
+  INDEX..REBUILD</code> command. If rebuilding an index failes, this is reported
+  within the log file written by a line starting with an exclamation mark ("!").</p>
+  <p><code>idxrebuild.sh</code> requires the <code>ORACLE_SID</code> as first
+  parameter. As a second, optional parameter you may specify a tablespace to
+  restrict the check to. More optional command line parameters can be found
+  in the <a href="#cmdline">command line</a> section of this document.</p>
+ </td></tr>
+
+ <tr><th class="th_sub"><a name="tabmove"></a>tabmove.sh</th></tr>
+ <tr><td class="text">
+  <p>As with Oracle 9, each tablespace can have its own block size settings: so
+  while having one tablespace with 8k block size, we can have another with 16k
+  block size for larger objects. So if we want to convert a tablespace, this may
+  be one reason to use <code>tabmove.sh</code> to get all the tables there.
+  Another possible reason is that tables and indices have been stored into the
+  same tablespace, and we just want to move the tables out here while the indices
+  should stay in this tablespace.</p>
+  <p><code>tabmove.sh</code> expects at least 3 parameters:<ol>
+   <li>the <code>ORACLE_SID</code> (as usual)</li>
+   <li>the <code>SourceTS</code> to look for the tables to be moved</li>
+   <li>the <code>TargetTS</code> to move the tables to</li>
+  </ol>For more options, see the <a href="#cmdline">command line</a> options
+  above.</p>
+ </td></tr>
+
+ <tr><th class="th_sub"><a name="tabreorg"></a>tabreorg.sh</th></tr>
+ <tr><td class="text">
+  <p>If tables are fragmented (see <a href="#analobj"><code>analobj.sh</code></a>),
+  this can become a performance issue. To automatically remove this fragmentation,
+  I wrote the <code>tabreorg.sh</code> script. In order to get rid of the
+  fragmentation plus help to prevent it in the future, it takes the following
+  steps:<ol>
+   <li>Checking for tables where the fragmentation exceeds a given treshhold</li>
+   <li>temporary moving the table to another tablespace, using the <code>ALTER
+       TABLE..MOVE</code> command, as described for
+       <a href="#tabmove"><code>tabmove.sh</code></a></li>
+   <li>Adjusting <code>PCTFREE</code> and <code>PCTUSED</code> as specified in
+       the configuration file</li>
+   <li>Moving the table back into its original tablespace</li>
+  </ol>We have to move the table as described, as we can only get rid of the
+  fragmentation by exporting and re-importing the entire table. We adjust the
+  values for <code>PCTFREE</code> and <code>PCTUSED</code> <b><i>before</i></b>
+  we transfer the table back to its original place, so these new values will
+  have effect on all table rows (not only on the new ones).</p>
+  <p>The only required parameter for <code>tabreorg.sh</code> (provided you set
+  up the <code>TR_TMP</code> variable in the <code>globalconf</code> correctly)
+  is the <code>ORACLE_SID</code> - more optional command line parameters can be
+  found in the <a href="#cmdline">command line</a> section of this document.</p>
+ </td></tr>
+
+<tr><td colspan="2"><hr></td></tr>
+ 
+ <tr><th class="th_sub"><a name="eval"></a>Evaluation of results</th></tr>
+ <tr><td class="text">
+  The only results you can see immediately come with <code>analobj.sh</code>:
+  the logfile provides you with a list of tables that exceed the configured
+  threshhold values and you now may consider whether to reorganize them. As for
+  the other scripts, just consult your logfile to see if there have been any
+  problems (marked by a "!" in the beginning of a line). If there is no such
+  line, and the script didn't crash for some reason, you should be able to tell
+  the result by the intended action ;)
+ </td></tr>
+</table>
+
+</body>
+</html>
