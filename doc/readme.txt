@@ -60,6 +60,7 @@ without any argument, so they will show it.
   idxmove.sh    | Moves indices from one tablespace to another
   idxrebuild.sh | Rebuilds all INVALID indices in a given tablespace
   tabmove.sh    | Moves tables from one tablespace to another
+  tabreorg.sh   | Reorganizes fragmented tables (chained rows)
 
 All scripts run via Sql*Plus and use its SPOOL command to log their activities.
 
