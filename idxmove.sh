@@ -41,7 +41,7 @@ CONFIG=$BINDIR/globalconf
 version='0.1.6'
 $ORACLE_HOME/bin/sqlplus -s /NOLOG <<EOF
 
-CONNECT $user/$password@$1
+CONNECT $user/$password@$ORACLE_CONNECT
 Set TERMOUT ON
 Set SCAN OFF
 Set SERVEROUTPUT On Size 1000000
