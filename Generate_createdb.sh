@@ -1,13 +1,43 @@
 #!/bin/bash
+# $Id$
+#
+# =============================================================================
+# Reverse engineer the createdb.sql from a running database
+# -----------------------------------------------------------------------------
+#                                                              Itzchak Rehberg
+#
+if [ -z "$1" ]; then
+  SCRIPT=${0##*/}
+  echo
+  echo "============================================================================"
+  echo "${SCRIPT}    (c) 2000 E Augustine"
+  echo "             (c) 2002-2005 by Itzchak Rehberg & IzzySoft (devel@izzysoft.de)"
+  echo "----------------------------------------------------------------------------"
+  echo "This script is intended to reverse-engineer the scripts to create a database"
+  echo "from a running instance. It is in no way certified or even complete, so use "
+  echo "it on your own risk! If encountering any problems, please drop a note to the"
+  echo "developer using the address above."
+  echo "Use the script with the following syntax on the machine the instance is"
+  echo "running at:"
+  echo "----------------------------------------------------------------------------"
+  echo "Syntax: ${SCRIPT} <ORACLE_SID>"
+  echo "============================================================================"
+  echo
+  exit 1
+fi
 
 set -x
 export ORACLE_SID=$1
+
+# =================================================[ Configuration Section ]===
 
 DBSPOOL="${ORACLE_SID}_createDB"
 USERSPOOL="${ORACLE_SID}_users"
 ROLESPOOL="${ORACLE_SID}_roles"
 SYSGRANTS="${ORACLE_SID}_sys_grants"
 OBJGRANTS="${ORACLE_SID}_obj_grants"
+
+# ===========================================================[ Do the job! ]===
 
 sqlplus -s "/as sysdba" <<EOF
 
@@ -70,6 +100,7 @@ Rem             29-06-2005 A I Rehberg       Minor bugfixes
 Rem              - fixed syntax error in created script for tablespace storage
 Rem                (with locally managed TS, next and pctincrease have been
 Rem                empty in some cases; now we substitute initial resp. 0)
+Rem              - script now prints is syntax when called w/o parameters
 
 Rem
 
