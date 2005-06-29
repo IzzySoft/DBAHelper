@@ -1,9 +1,15 @@
-#!/bin/sh
+#!/bin/bash
 
 set -x
 export ORACLE_SID=$1
 
-sqlplus -s internal <<EOF  
+DBSPOOL="${ORACLE_SID}_createDB"
+USERSPOOL="${ORACLE_SID}_users"
+ROLESPOOL="${ORACLE_SID}_roles"
+SYSGRANTS="${ORACLE_SID}_sys_grants"
+OBJGRANTS="${ORACLE_SID}_obj_grants"
+
+sqlplus -s "/as sysdba" <<EOF
 
 Rem  Filename : Generate_createdb.sh
 Rem  Purpose  : To reverse engineer the createdb.sql from a running database
@@ -51,6 +57,19 @@ Rem              - some statements had wrong syntax (fixed)
 Rem		23-04-2002 A I Rehberg       Small additions
 Rem              - added "Extent Management", "[No]Logging" and "Minimum Extent"
 Rem                clauses to "Create TableSpace" statements
+Rem             28-06-2005 A I Rehberg       Marginal changes plus re-structuring
+Rem              - replaced svrmgrl by sqlplus (svrmgrl not available anymore with
+Rem                Oracle v9+)
+Rem              - replaced "connect internal" by "/as sysdba" (same reason)
+Rem              - changed shell to /bin/bash
+Rem              - splitted up output to multiple spool files to a) separate tasks
+Rem                (technical DB, users, grants etc) and b) work around the limit of
+Rem                dbms_output generated files (which is 1MB) for large DBs with many
+Rem                users/grants
+Rem             29-06-2005 A I Rehberg       Minor bugfixes
+Rem              - fixed syntax error in created script for tablespace storage
+Rem                (with locally managed TS, next and pctincrease have been
+Rem                empty in some cases; now we substitute initial resp. 0)
 
 Rem
 
@@ -60,7 +79,7 @@ Set LINESIZE 300
 Set TRIMSPOOL On 
 Set FEEDBACK OFF
 Set Echo Off
-Spool createdb_${ORACLE_SID}.sql
+Spool ${DBSPOOL}.sql
 
 Declare
 
@@ -89,13 +108,6 @@ Declare
 	 From  DBA_PROFILES
 	 Where PROFILE=PROF;
 	 
-	-- User information
-	Cursor C_User_Info Is
-	Select USERNAME,DEFAULT_TABLESPACE,TEMPORARY_TABLESPACE,PROFILE,ACCOUNT_STATUS
-	 From  DBA_USERS
-	 Where lower(USERNAME) Not In ('sys','system','outln','dbsnmp')
-	 Order By USER_ID;
-
 	-- Administrative User information
 	Cursor C_Admin_Info Is
 	Select USERNAME,DEFAULT_TABLESPACE,TEMPORARY_TABLESPACE
@@ -103,32 +115,6 @@ Declare
 	 Where lower(USERNAME) In ('sys','system')
 	 Order By USER_ID;
 
-	-- Tablespace Quota information
-	Cursor C_Quota_Info Is
-	Select * From DBA_TS_QUOTAS
-	 Order By USERNAME;
-
-        -- Role information
-	Cursor C_Role_Info Is
-	Select * From DBA_ROLE_PRIVS
-	 Where lower(GRANTEE) Not In ('sys','system','outln','dbsnmp')
-	 Order By GRANTEE;
-
-        -- System Privileges
-	Cursor C_SysPriv_Info Is
-	Select * from DBA_SYS_PRIVS
-	 Where lower(GRANTEE) Not In ('sys','system','outln','dbsnmp','connect','dba','exp_full_database','imp_full_database','recovery_catalog_owner','resource','snmpagent','aq_administrator_role','aq_user_role','hs_admin_role','plustrace','tkprofer','ck_oracle_repos_owner')
-	 Order By GRANTEE;
-
-        -- Object Privileges (only those on sys/systems objects; all others
-	-- are provided by exp/imp the schemes)
-	Cursor C_TabPriv_Info Is
-	Select * From DBA_TAB_PRIVS
-	 Where lower(GRANTOR) In ('public','sys','system')
-	   And GRANTEE Not In (Select ROLE From DBA_ROLES)
-	   And lower(GRANTEE) Not In ('sys','system')
-	 Order By GRANTEE,TABLE_NAME;
-	
 	-- Tablespace information
 	Cursor C_Tablespace_Info ( P_TS Varchar2 ) Is
 	Select * From DBA_TABLESPACES
@@ -172,9 +158,9 @@ Begin
 	L4 := L2||L2;
 	L6 := L2||L4;
 	
-	L_LINE := 'Connect Internal'||Chr(10)||
+	L_LINE := 'Connect "/as sysdba"'||Chr(10)||
 		  'Set TERMOUT On ECHO On'||Chr(10)||
-		  'Spool createdb_${ORACLE_SID}.log'||Chr(10)||
+		  'Spool ${DBSPOOL}.log'||Chr(10)||
 		  'Startup nomount'||Chr(10); 
  
 	dbms_output.put_line(L_LINE);
@@ -354,14 +340,14 @@ Begin
 			Chr(10)||'    Initial     '||
 			     To_Char(Rec_TS_Info.INITIAL_EXTENT/1024)||' K'||
 			Chr(10)||'    Next        '||
-			     To_Char(Rec_TS_Info.NEXT_EXTENT/1024)||' K'||
+			     To_Char(NVL(Rec_TS_Info.NEXT_EXTENT/1024,Rec_TS_Info.INITIAL_EXTENT/1024))||' K'||
 			Chr(10)||'    Minextents  '||
 			     To_Char(Rec_TS_Info.MIN_EXTENTS)||
 			Chr(10)||'    Maxextents  '||
 			      L_MAXEXTENTS  ||            /* DKapfer */
 			  --  Rec_TS_Info.MAX_EXTENTS||   /*DKapfer*/
 			Chr(10)||'    Pctincrease '||
-			     To_Char(Rec_TS_Info.PCT_INCREASE)||
+			     To_Char(NVL(Rec_TS_Info.PCT_INCREASE,0))||
 			Chr(10)||
 			'                )'
 			;
@@ -468,6 +454,75 @@ Begin
 	L_LINE := L_LINE||Chr(10);
 	dbms_output.put_line(L_LINE);
 
+        --
+        -- Catalog
+        --
+	L_LINE := 'Connect System/Manager'||Chr(10)||
+		  'Set TERMOUT Off ECHO Off'||Chr(10)||
+		  '@${ORACLE_HOME}/rdbms/admin/catdbsyn'||Chr(10)||  /*DKapfer*/
+		  '@${ORACLE_HOME}/sqlplus/admin/pupbld'||Chr(10)||  /*DKapfer*/
+		  'Set TERMOUT On ECHO On'||Chr(10);
+
+	dbms_output.put_line(L_LINE);
+
+        --
+        -- ArcLog
+        --
+	L_LINE := 'Connect "/as sysdba"'||Chr(10)||
+		  'Shutdown'||Chr(10)||
+		  'Startup'||Chr(10)||Chr(10);
+
+	dbms_output.put_line(L_LINE);
+
+	If L_LOGMODE = 'ARCHIVELOG' Then
+	  L_LINE := 'Shutdown immediate'||Chr(10)||
+                    'Startup Mount'||Chr(10)||
+                    'Alter Database ARCHIVELOG;'||Chr(10)||
+                    'Alter Database Open;'||Chr(10);
+	  dbms_output.put_line(L_LINE);
+	End If;
+
+        --
+        -- Finish System File. User Info will go to separate file
+        --
+	L_LINE := 'Spool Off'||Chr(10)||Chr(10)||
+	          '--'||Chr(10)||'-- Other scripts to run (comment out unwanted ones here)'||
+	          Chr(10)||'--';
+	dbms_output.put_line(L_LINE);
+	L_LINE := '@${USERSPOOL}.sql'||Chr(10)||
+	          '@${ROLESPOOL}.sql'||Chr(10)||
+	          '@${SYSGRANTS}.sql'||Chr(10)||
+	          '@${OBJGRANTS}.sql'||Chr(10)||
+	          'Exit'||Chr(10);
+	dbms_output.put_line(L_LINE);
+End;
+/
+Spool Off
+
+-- ===============================================[ User Data Part ]===
+
+Spool ${USERSPOOL}.sql
+Declare
+	-- User information
+	Cursor C_User_Info Is
+	Select USERNAME,DEFAULT_TABLESPACE,TEMPORARY_TABLESPACE,PROFILE,ACCOUNT_STATUS
+	 From  DBA_USERS
+	 Where lower(USERNAME) Not In ('sys','system','outln','dbsnmp')
+	 Order By USER_ID;
+
+	-- Tablespace Quota information
+	Cursor C_Quota_Info Is
+	Select * From DBA_TS_QUOTAS
+	 Order By USERNAME;
+
+ 	L_LINE 		Varchar2(2000);		-- A line to output
+	L6		Varchar2(9);		-- 6 spaces
+	L4		Varchar2(9);		-- 4 spaces
+	L2		Varchar2(9);		-- 2 spaces
+
+
+Begin
+   dbms_output.put_line('Spool createusers_${ORACLE_SID}.log');
 	--
 	-- Get the data for the other users
 	--
@@ -495,7 +550,32 @@ Begin
 	End Loop;
 	L_LINE := '/'||Chr(10)||Chr(10);
 	dbms_output.put_line(L_LINE);
-	
+
+	L_LINE := 'Spool Off'||Chr(10);
+
+	dbms_output.put_line(L_LINE);
+End;
+/
+Spool Off
+
+-- ===============================================[ User Role Grants Part ]===
+
+Spool ${ROLESPOOL}.sql
+
+Declare
+        -- Role information
+	Cursor C_Role_Info Is
+	Select * From DBA_ROLE_PRIVS
+	 Where lower(GRANTEE) Not In ('sys','system','outln','dbsnmp')
+	 Order By GRANTEE;
+
+ 	L_LINE 		Varchar2(2000);		-- A line to output
+	L6		Varchar2(9);		-- 6 spaces
+	L4		Varchar2(9);		-- 4 spaces
+	L2		Varchar2(9);		-- 2 spaces
+
+Begin	
+   dbms_output.put_line('Spool ${ROLESPOOL}.log');
 	For Rec_Role In C_Role_Info Loop
 	  L_LINE := 'GRANT '||Rec_Role.GRANTED_ROLE
 	    ||' To '||Rec_Role.GRANTEE;
@@ -508,6 +588,33 @@ Begin
 	L_LINE := '/'||Chr(10)||Chr(10);
 	dbms_output.put_line(L_LINE);
 
+	L_LINE := 'Spool Off'||Chr(10);
+
+	dbms_output.put_line(L_LINE);
+End;
+/
+Spool Off
+
+
+-- ===============================================[ User System Grants Part ]===
+
+Spool ${SYSGRANTS}.sql
+
+Declare
+        -- System Privileges
+	Cursor C_SysPriv_Info Is
+	Select * from DBA_SYS_PRIVS
+	 Where lower(GRANTEE) Not In ('sys','system','outln','dbsnmp','connect','dba','exp_full_database','imp_full_database','recovery_catalog_owner','resource','snmpagent','aq_administrator_role','aq_user_role','hs_admin_role','plustrace','tkprofer','ck_oracle_repos_owner')
+	 Order By GRANTEE;
+
+ 	L_LINE 		Varchar2(2000);		-- A line to output
+	L6		Varchar2(9);		-- 6 spaces
+	L4		Varchar2(9);		-- 4 spaces
+	L2		Varchar2(9);		-- 2 spaces
+
+
+Begin
+   dbms_output.put_line('Spool ${SYSGRANTS}.log');
 	For Rec_SysPriv In C_SysPriv_Info Loop
 	  L_LINE := 'GRANT '||Rec_SysPriv.Privilege
 	    ||' To '||Rec_SysPriv.GRANTEE;
@@ -520,6 +627,33 @@ Begin
 	L_LINE := '/'||Chr(10)||Chr(10);
 	dbms_output.put_line(L_LINE);
 
+	L_LINE := 'Spool Off'||Chr(10);
+
+	dbms_output.put_line(L_LINE);
+End;
+/
+Spool Off
+
+-- ===============================================[ User Object Grants Part ]===
+
+Spool ${OBJGRANTS}.sql
+Declare
+        -- Object Privileges (only those on sys/systems objects; all others
+	-- are provided by exp/imp the schemes)
+	Cursor C_TabPriv_Info Is
+	Select * From DBA_TAB_PRIVS
+	 Where lower(GRANTOR) In ('public','sys','system')
+	   And GRANTEE Not In (Select ROLE From DBA_ROLES)
+	   And lower(GRANTEE) Not In ('sys','system')
+	 Order By GRANTEE,TABLE_NAME;
+
+ 	L_LINE 		Varchar2(2000);		-- A line to output
+	L6		Varchar2(9);		-- 6 spaces
+	L4		Varchar2(9);		-- 4 spaces
+	L2		Varchar2(9);		-- 2 spaces
+	
+Begin
+   dbms_output.put_line('Spool ${OBJGRANTS}.log');
 	For Rec_TabPriv In C_TabPriv_Info Loop
 	  L_LINE := 'GRANT '||Rec_TabPriv.PRIVILEGE
 	    ||' On '||Rec_TabPriv.GRANTOR||'.'||Rec_TabPriv.TABLE_NAME
@@ -533,39 +667,18 @@ Begin
 	L_LINE := '/'||Chr(10)||Chr(10);
 	dbms_output.put_line(L_LINE);
 
-	L_LINE := 'Connect System/Manager'||Chr(10)||
-		  'Set TERMOUT Off ECHO Off'||Chr(10)||
-		  '@${ORACLE_HOME}/rdbms/admin/catdbsyn'||Chr(10)||  /*DKapfer*/
-		  '@${ORACLE_HOME}/sqlplus/admin/pupbld'||Chr(10)||  /*DKapfer*/
-		  'Set TERMOUT On ECHO On'||Chr(10);
-
-	dbms_output.put_line(L_LINE);
-
-	L_LINE := 'Connect Internal'||Chr(10)||
-		  'Shutdown'||Chr(10)||
-		  'Startup'||Chr(10)||Chr(10);
-
-	dbms_output.put_line(L_LINE);
-
-	If L_LOGMODE = 'ARCHIVELOG' Then
-	  L_LINE := 'Shutdown immediate'||Chr(10)||
-                    'Startup Mount'||Chr(10)||
-                    'Alter Database ARCHIVELOG;'||Chr(10)||
-                    'Alter Database Open;'||Chr(10);
-	  dbms_output.put_line(L_LINE);
-	End If;
-
-	L_LINE := 'Spool Off'||Chr(10)||'Exit'||Chr(10);
+	L_LINE := 'Spool Off'||Chr(10);
 
 	dbms_output.put_line(L_LINE);
 End;
 /
 Spool Off
+
 Exit
 
 EOF
 
-echo $ORACLE_SID
+echo "Reverse engineering of DBCreate Sripts for $ORACLE_SID finished."
 
 exit 0
 
