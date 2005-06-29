@@ -56,7 +56,7 @@ without any argument, so they will show it.
   Script               | Intention
   ---------------------+-------------------------------------------------------
   Generate_createdb.sh | Reverse engineer the database creation script from a
-                       | running instance
+                       | running instance (configuration within the script)
   analobj.sh           | Analyzes Objects for a given schema and outputs an
                        | ASCII report on chained/migrated rows.
   idxmove.sh           | Moves indices from one tablespace to another
