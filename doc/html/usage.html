@@ -20,6 +20,12 @@
   affected scripts in separate sections.
  </td></tr>
  <tr><td class="text">
+  Note that the <code>Generate_createdb.sh</code> script does not use the
+  <code>globalconf</code> configuration file, and the parameters/options
+  described in this general block do not apply to that script (except for the
+  <code>ORACLE_SID</code> parameter, which should not need any explanation).
+ </td></tr>
+ <tr><td class="text">
   <table align="center" width="95%">
    <tr><th class="th_sub2">Parameter</th><th class="th_sub2">Description</th></tr>
    <tr><td class="td_name" colspan="2" align="center">Common parameters</td></tr>
@@ -56,6 +62,24 @@
     ./tabreorg.sh oradb -c my.config -l 1 -o peter
   </div>
   </td></tr></table>
+ </td></tr>
+
+ <tr><th class="th_sub"><a name="oragen"></a>Generate_createdb.sh</th></tr>
+ <tr><td class="text">
+  <p>The <code>Generate_createdb.sh</code> script can be used to
+  <code>generate</code> a <code>create database</code> script from the
+  information stored within a running instance, which can be called
+  "reverse engineering". If you saved these scripts after setting up your
+  instance, you may not need to do this -- but sometimes you miss these
+  scripts and want to be prepared for the "worst case".</p>
+  <p>As stated in the header of the script itself, it is in no way complete
+  or certified -- as it is not the recommended way to get the create scripts.
+  But sometimes there's no other option left, if that important information is
+  lost -- so <code>Generate_createdb.sh</code> at least gives you something to
+  start with. After the scripts have been created, you should check them
+  thoroughly for any mistakes, errors and missing information. The script does
+  not take care for all the latest features you may have used, but however it
+  should create valid scripts for Oracle versions 8i and 9i.</p>
  </td></tr>
 
  <tr><th class="th_sub"><a name="analobj"></a>analobj.sh</th></tr>
