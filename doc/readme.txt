@@ -53,14 +53,16 @@ on Oracle databases only :-)
 For the syntax of all scripts, just see within their header - or run them
 without any argument, so they will show it.
 
-  Script        | Intention
-  --------------+---------------------------------------------------------
-  analobj.sh    | Analyzes Objects for a given schema and outputs an ASCII
-                | report on chained/migrated rows.
-  idxmove.sh    | Moves indices from one tablespace to another
-  idxrebuild.sh | Rebuilds all INVALID indices in a given tablespace
-  tabmove.sh    | Moves tables from one tablespace to another
-  tabreorg.sh   | Reorganizes fragmented tables (chained rows)
+  Script               | Intention
+  ---------------------+-------------------------------------------------------
+  Generate_createdb.sh | Reverse engineer the database creation script from a
+                       | running instance
+  analobj.sh           | Analyzes Objects for a given schema and outputs an
+                       | ASCII report on chained/migrated rows.
+  idxmove.sh           | Moves indices from one tablespace to another
+  idxrebuild.sh        | Rebuilds all INVALID indices in a given tablespace
+  tabmove.sh           | Moves tables from one tablespace to another
+  tabreorg.sh          | Reorganizes fragmented tables (chained rows)
 
 All scripts run via Sql*Plus and use its SPOOL command to log their activities.
 

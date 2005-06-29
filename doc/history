@@ -3,9 +3,22 @@ $Id$
 History for DBAHelper
 =====================
 
-v0.1.0 (15.01.2004)
+v0.1.4
 -------------------
-* initial version (first release)
++ added the Generate_createdb.sh script to the package
+
+v0.1.3 (12.02.2004)
+-------------------
++ added documentation in HTML format
+* updated most script headers concerning the "Usage"/"Syntax" output
+! idxrebuild: fixed problem with optional 2nd parameter
+
+v0.1.2 (06.02.2004)
+-------------------
+! all: scripts crashed on objects with names using mixed case
++ all: enhanced command line syntax
++ analobj: LOGALL can now be overridden on cmdline
++ added tabreorg.sh (automatically re-organize fragmented tables)
 
 v0.1.1 (26.01.2004)
 -------------------
@@ -18,15 +31,6 @@ v0.1.1 (26.01.2004)
 + analobj.sh now optionally outputs complete log (logging all ANALYZE
   statements as well)
 
-v0.1.2 (06.02.2004)
+v0.1.0 (15.01.2004)
 -------------------
-! all: scripts crashed on objects with names using mixed case
-+ all: enhanced command line syntax
-+ analobj: LOGALL can now be overridden on cmdline
-+ added tabreorg.sh (automatically re-organize fragmented tables)
-
-v0.1.3 (12.02.2004)
--------------------
-+ added documentation in HTML format
-* updated most script headers concerning the "Usage"/"Syntax" output
-! idxrebuild: fixed problem with optional 2nd parameter
+* initial version (first release)
