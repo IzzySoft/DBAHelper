@@ -6,6 +6,10 @@ History for DBAHelper
 v0.1.4
 -------------------
 + added the Generate_createdb.sh script to the package
+* renamed idxrebuild.sh to idxrebuild_inv.sh (rebuilding all invalid
+  indices)
++ new idxrebuild_all: now rebuilding all indices from the smallest to the
+  largest (in bytes), and executing ALTER TABLESPACE..COALESCE in between
 
 v0.1.3 (12.02.2004)
 -------------------
