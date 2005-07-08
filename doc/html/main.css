@@ -90,6 +90,8 @@ a:link {
   color: #000099;
 }
 code {
-	font-size: 115%;
+  font-size: 115%;
+  color:#660033;
+  font-family:monospace;
 }
 

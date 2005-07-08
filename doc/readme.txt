@@ -60,7 +60,11 @@ without any argument, so they will show it.
   analobj.sh           | Analyzes Objects for a given schema and outputs an
                        | ASCII report on chained/migrated rows.
   idxmove.sh           | Moves indices from one tablespace to another
-  idxrebuild.sh        | Rebuilds all INVALID indices in a given tablespace
+  idxrebuild_inv.sh    | Rebuilds all INVALID indices in a given tablespace
+  idxrebuild_all.sh    | Rebuilds all indices in a given tablespace having more
+                       | than 1 extent, starting with the smallest and in between
+                       | executing ALTER TABLESPACE..COALESCE to re-gain unused
+                       | space best
   tabmove.sh           | Moves tables from one tablespace to another
   tabreorg.sh          | Reorganizes fragmented tables (chained rows)
 

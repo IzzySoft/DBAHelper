@@ -135,22 +135,45 @@
   above.</p>
  </td></tr>
 
- <tr><th class="th_sub"><a name="idxrebuild"></a>idxrebuild.sh</th></tr>
+ <tr><th class="th_sub"><a name="idxrebuild_inv"></a>idxrebuild_inv.sh</th></tr>
  <tr><td class="text">
   <p>If indices become invalid, you may notice strong performance loss for
   applications that were using it due to Oracle executing Full Table Scans (FTS)
   instead of finding the row id(s) via the index. In some cases, the entire
   application may stop working (or at least it may seem so) and become unusable
   due to its bad performance. This is an intolerable situation - but thanks to
-  <code>idxrebuild.sh</code> we can overcome it quickly and easy:</p>
-  <p><code>idxrebuild.sh</code> queries the system views for indices that are
+  <code>idxrebuild_inv.sh</code> we can overcome it quickly and easy:</p>
+  <p><code>idxrebuild_inv.sh</code> queries the system views for indices that are
   in unusable state and then tries to rebuild them using the <code>ALTER
   INDEX..REBUILD</code> command. If rebuilding an index failes, this is reported
   within the log file written by a line starting with an exclamation mark ("!").</p>
-  <p><code>idxrebuild.sh</code> requires the <code>ORACLE_SID</code> as first
+  <p><code>idxrebuild_inv.sh</code> requires the <code>ORACLE_SID</code> as first
   parameter. As a second, optional parameter you may specify a tablespace to
   restrict the check to. More optional command line parameters can be found
   in the <a href="#cmdline">command line</a> section of this document.</p>
+ </td></tr>
+
+ <tr><th class="th_sub"><a name="idxrebuild_all"></a>idxrebuild_all.sh</th></tr>
+ <tr><td class="text">
+  <p>Over time, indices can become inperformant since they loose balance due to
+  (frequent) updates/inserts. And as well they may use more space than needed
+  because of deletes. Thus to make them performant again as well as to re-gain the
+  waisted space, a rebuild cannot be that bad an idea.</p>
+  <p><code>idxrebuild_all.sh</code> checks your database dictionary for the
+  existing indices with more than 1 extent in use (for the smaller ones we don't
+  gain much speed, and especially no space). This list will be ordered by the
+  space consumed by each index. Then it processes this list from top to bottom.
+  First it tries to <code>REBUILD ONLINE</code> and, if this fails, without the
+  online option (except you uncomment that statement in the script). At 3 times
+  during this process it will <code>COALESCE</code> the tablespace (if you specified
+  one):</p><ul>
+  <li>50% of the index count or 1/3 of the size have been processed</li>
+  <li>75% of the index count or 2/3 of the size have been processed</li>
+  <li>all indices have been processed</li></ul>
+  <p>This way chances are good that the largest index may be successfully rebuild,
+  even if in the beginning it looked like you did not have enough space for this.</p>
+  <p>The syntax of this script (and the logfile format) is the same as for
+  <code>idxrebuild_inv.sh</code> above.</p>
  </td></tr>
 
  <tr><th class="th_sub"><a name="tabmove"></a>tabmove.sh</th></tr>
