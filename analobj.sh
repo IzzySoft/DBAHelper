@@ -10,7 +10,7 @@ if [ -z "$3" ]; then
   SCRIPT=${0##*/}
   echo
   echo "============================================================================"
-  echo "${SCRIPT}  (c) 2003-2004 by Itzchak Rehberg & IzzySoft (devel@izzysoft.de)"
+  echo "${SCRIPT}  (c) 2003-2005 by Itzchak Rehberg & IzzySoft (devel@izzysoft.de)"
   echo "----------------------------------------------------------------------------"
   echo "This script is intended to analyze objects for a given schema. First"
   echo "configure your SYS user / passwd in the 'globalconf' file, then call this"
