@@ -9,7 +9,7 @@
 #
 # login information
 user=sys
-password="pyha#"
+password="change_me"
 # Oracle SID
 export ORACLE_SID=$1
 # Prefix for the log file to write to. The parameters passed to the script will
