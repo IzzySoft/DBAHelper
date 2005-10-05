@@ -26,7 +26,7 @@ if [ -z "$1" ]; then
   exit 1
 fi
 
-set -x
+#set -x
 export ORACLE_SID=$1
 
 # =================================================[ Configuration Section ]===
@@ -36,6 +36,7 @@ USERSPOOL="${ORACLE_SID}_users"
 ROLESPOOL="${ORACLE_SID}_roles"
 SYSGRANTS="${ORACLE_SID}_sys_grants"
 OBJGRANTS="${ORACLE_SID}_obj_grants"
+SYNONYMS="${ORACLE_SID}_pub_synonyms"
 
 # ===========================================================[ Do the job! ]===
 
@@ -59,7 +60,6 @@ Rem             basis to start with!
 Rem
 Rem  Not done : - resource consumer groups are not catered for
 Rem             - account locks not catered for
-Rem             - "Create Role" statements are not created
 Rem
 Rem  History  : 20-01-2000 E Augustine 	Created
 Rem		14-02-2000 E Augustine	
@@ -101,6 +101,16 @@ Rem              - fixed syntax error in created script for tablespace storage
 Rem                (with locally managed TS, next and pctincrease have been
 Rem                empty in some cases; now we substitute initial resp. 0)
 Rem              - script now prints is syntax when called w/o parameters
+Rem		05-10-2005 A I Rehberg
+Rem		 - Default Storage parameters for Tablespaces are now only generated
+Rem                for dictionary managed TS (causes errors on creating locally managed TS)
+Rem              - Temporary TS statement is now also created
+Rem		 - Rollback Segments are no longer created (and "altered online") when
+Rem		   database is in auto undo mode
+Rem		 - added export of public synonyms and database links (not owned by SYS or SYSTEM).
+Rem		 - Now also creating roles
+Rem		 - CREATE USERS are now done with the correct password (using the undocumented
+Rem		   "identified by values" feature)
 
 Rem
 
@@ -115,19 +125,19 @@ Spool ${DBSPOOL}.sql
 Declare
 
 	-- Non SYSTEM Tablespaces are created explicitly. 
-	-- The Min(FILE_ID) is used to select the order in which Tablespaces
-	-- were created.
 	Cursor C_Tablespaces Is
-	Select TABLESPACE_NAME, Min(FILE_ID) From DBA_DATA_FILES 
+	Select Distinct TABLESPACE_NAME From DBA_DATA_FILES 
 	 Where TABLESPACE_NAME Not Like 'SYSTEM%'
-	 Group By TABLESPACE_NAME
- 	 Order By 2;
+	Union
+ 	Select Distinct TABLESPACE_NAME From DBA_TEMP_FILES;
 
 	-- All files for a tablespace.
 	Cursor C_Datafiles ( P_TS Varchar2 ) Is
 	Select * From DBA_DATA_FILES 
 	 Where TABLESPACE_NAME = P_TS
-	 Order By FILE_ID;
+	Union
+	Select * From DBA_TEMP_FILES
+	 Where TABLESPACE_NAME = P_TS;
 
 	-- Profile information
 	Cursor C_Profiles Is
@@ -175,6 +185,7 @@ Declare
  	L_LINE 		Varchar2(2000);		-- A line to output
 	L_SID		Varchar2(20);		-- Oracle Database Name 
 	L_LOGMODE	Varchar2(50);		-- Archivelog or not
+	L_UNDOMODE      Varchar2(50);		-- Automatic Undo?
 	L_CHRSET	Varchar2(50);		-- NLS character set
 	L_GROUPS	Number(9);		-- Nos of Log Groups
 	L_LOGSIZE	Number(9);		-- Logfile size
@@ -199,6 +210,10 @@ Begin
 	Select NAME, LOG_MODE 
  	  Into L_SID, L_LOGMODE 
 	  From V\$DATABASE;
+
+	Select Lower(VALUE) Into L_UNDOMODE
+	  From V\$PARAMETER
+	  Where Lower(NAME)='undo_management';
 
 	Select VALUE Into L_CHRSET 
    	  From V\$NLS_PARAMETERS
@@ -225,14 +240,12 @@ Begin
 	--
 	FirstTime := TRUE;
 	For Rec_Datafiles In C_Datafiles ( 'SYSTEM' ) Loop
-
 	  If FirstTime Then
 	     FirstTime := FALSE;
 	     L_LINE := '	';
 	  Else
 	     L_LINE := L_LINE||' ,'||Chr(10)||'	';
  	  End If;
-
 	  L_LINE := L_LINE||
 			 ''''||Rec_Datafiles.FILE_NAME||''''||' Size '||
 		         To_Char(Rec_Datafiles.BYTES/1024)||' K';
@@ -240,38 +253,29 @@ Begin
 	     L_LINE := L_LINE||' Autoextend On';
 	  End If;
         End Loop;
-
 	L_LINE := L_LINE || Chr(10) || L4 || 'Logfile ';
 	dbms_output.put_line(L_LINE);
 
 	--
 	-- Create the LOGFILE bits ...
 	--
-
 	FirstTime := TRUE;	-- For groups
 	For L_INDEX In 1.. L_GROUPS Loop
-
 	    If FirstTime Then
 	      FirstTime := FALSE;	-- For groups
 	      L_LINE := '	 Group '|| To_Char(L_INDEX) || ' (';
 	    Else
 	      L_LINE := '	,Group '|| To_Char(L_INDEX) || ' (';
 	    End If;
-
 	    FirstTime := TRUE;	-- For members
-
 	    For Rec_Logfile In C_Logfile ( L_INDEX ) Loop
-
 	      If FirstTime Then
 		FirstTime := FALSE;  -- For members
 	      Else
 		L_LINE := L_LINE ||Chr(10)||L6||L2||'	 ,';
 	      End If;
-
 	      L_LINE := L_LINE||''''||Rec_Logfile.MEMBER||'''';
-
 	    End Loop;   
-
 	    L_LINE := L_LINE || Chr(10)||L6||L2||
 				'	 ) Size '||To_Char(L_LOGSIZE)||' K ';
 	    dbms_output.put_line(L_LINE);
@@ -280,32 +284,26 @@ Begin
 	--
 	-- The bootstrapping stuff ... 
 	--
-
 	L_LINE := '/'||Chr(10)||Chr(10)||
 		     'Set TERMOUT Off ECHO Off'||Chr(10)||
 		     '@${ORACLE_HOME}/rdbms/admin/catalog.sql'||Chr(10)||
 		     '@${ORACLE_HOME}/rdbms/admin/catproc.sql'||Chr(10)||
 		     'Set TERMOUT On ECHO On'||Chr(10)||Chr(10);
-
 	dbms_output.put_line(L_LINE);
 
 	--
 	-- The Rollback segments in the SYSTEM tablespace 
 	--
-
         For Rec_RBS In C_Rollback_Segs ('SYSTEM') Loop
-
           L_LINE := 'Create Rollback Segment '||Rec_RBS.SEGMENT_NAME||
 		   	 Chr(10)||'  Tablespace '||
 			 Rec_RBS.TABLESPACE_NAME||
 			 Chr(10)||'  '||'Storage (';
-			 
           if Rec_RBS.MAX_EXTENTS > 2000000000  or Rec_RBS.MAX_EXTENTS is null then  /* DKapfer */
             L_MAXEXTENTS := 'Unlimited';
           else  			 
             L_MAXEXTENTS := To_Char(Rec_RBS.MAX_EXTENTS);
           end if;  
-            
 	  L_LINE := L_LINE||Chr(10)||'    Initial     '||
 			     To_Char(Rec_RBS.INITIAL_EXTENT/1024)||' K'||
 			 Chr(10)||'    Next        '||
@@ -321,31 +319,24 @@ Begin
 			 ||'          )'||Chr(10)||'/'||Chr(10)
 			 ;
 	  dbms_output.put_line(L_LINE);
-
         End Loop;
 
 
 	--
 	-- Create all other tablespaces ...
 	--
-
 	For Rec_Tablespaces In C_Tablespaces Loop
-
 	  L_LINE := 'Create Tablespace '||Rec_Tablespaces.TABLESPACE_NAME;
-
 	  dbms_output.put_line(L_LINE);
-
 	  FirstTime := TRUE;
 	  For Rec_Datafiles In 
 		C_Datafiles ( Rec_Tablespaces.TABLESPACE_NAME ) Loop
-
 	    If FirstTime Then
 	 	FirstTime := FALSE;
 		L_LINE := ' Datafile ';
 	    Else
 	 	L_LINE := '	,';
  	    End If;
-
 	    L_LINE := L_LINE||''''||Rec_Datafiles.FILE_NAME||''''||
 			 ' Size '||
 		         To_Char(Rec_Datafiles.BYTES/1024)||' K';
@@ -353,21 +344,17 @@ Begin
 	       L_LINE := L_LINE||' Autoextend On';
 	    End If;
 	    dbms_output.put_line(L_LINE);
-
 	  End Loop;
-
 
 	  For Rec_TS_Info In 
 		C_Tablespace_Info( Rec_Tablespaces.TABLESPACE_NAME ) Loop
-
-          if Rec_TS_Info.MAX_EXTENTS > 2000000000 or Rec_TS_Info.MAX_EXTENTS is null then  /* DKapfer */
-            L_MAXEXTENTS := 'Unlimited';
-          else  			 
-            L_MAXEXTENTS := To_Char(Rec_TS_Info.MAX_EXTENTS);
-          end if;  
-            
-
-	    L_LINE :='    Default Storage ( '||
+            if Rec_TS_Info.MAX_EXTENTS > 2000000000 or Rec_TS_Info.MAX_EXTENTS is null then  /* DKapfer */
+              L_MAXEXTENTS := 'Unlimited';
+            else  			 
+              L_MAXEXTENTS := To_Char(Rec_TS_Info.MAX_EXTENTS);
+            end if;  
+            if Rec_TS_Info.EXTENT_MANAGEMENT = 'DICTIONARY' then
+		    L_LINE :='    Default Storage ( '||
 			Chr(10)||'    Initial     '||
 			     To_Char(Rec_TS_Info.INITIAL_EXTENT/1024)||' K'||
 			Chr(10)||'    Next        '||
@@ -382,6 +369,7 @@ Begin
 			Chr(10)||
 			'                )'
 			;
+	    end if;
 	    L_LINE := L_LINE||Chr(10)||' '||
 	              'Extent Management '||Rec_TS_Info.EXTENT_MANAGEMENT||chr(10);
 	    L_LINE := L_LINE||' '||Rec_TS_Info.LOGGING||Chr(10);
@@ -389,63 +377,56 @@ Begin
 	    L_LINE := L_LINE||Chr(10)||' '||
 			Rec_TS_Info.CONTENTS||Chr(10)||'/'||Chr(10)||Chr(10);
 	    dbms_output.put_line(L_LINE);
-
 	  End Loop;
 	
 	  -- 
 	  -- Create all Rollback segments in the tablespace being created ...
 	  --
-
-	  For Rec_RBS In C_Rollback_Segs (Rec_Tablespaces.TABLESPACE_NAME) Loop
-
-	    L_LINE := 'Create Rollback Segment '||Rec_RBS.SEGMENT_NAME||
-		   	 Chr(10)||'  Tablespace '||
-			 Rec_RBS.TABLESPACE_NAME||
-			 Chr(10)||'  '||'Storage (';
-
-          if Rec_RBS.MAX_EXTENTS > 2000000000 or Rec_RBS.MAX_EXTENTS is null then  /* DKapfer */
-            L_MAXEXTENTS := 'Unlimited';
-          else  			 
-            L_MAXEXTENTS := To_Char(Rec_RBS.MAX_EXTENTS);
-          end if; 
-
-
-	    L_LINE := L_LINE||Chr(10)||'    Initial     '||
-			     To_Char(Rec_RBS.INITIAL_EXTENT/1024)||' K'||
-			 Chr(10)||'    Next        '||
-			     To_Char(Rec_RBS.NEXT_EXTENT/1024)||' K'||
-			 Chr(10)||'    Minextents  '||
-			     To_Char(Rec_RBS.MIN_EXTENTS)||
-			 Chr(10)||'    Maxextents  '||
-			      L_MAXEXTENTS  ||            /* DKapfer */
-			 --   Rec_RBS.MAX_EXTENTS||       /* DKapfer */
-			 Chr(10)||'    Optimal     '||
-			     To_Char(Rec_RBS.MIN_EXTENTS * 
-				     Rec_RBS.NEXT_EXTENT/1024)||' K'||Chr(10)
-			 ||'          )'||Chr(10)||'/'||Chr(10)
-			 ;
-	    dbms_output.put_line(L_LINE);
-
-          End Loop;
-
+	  If L_UNDOMODE != 'auto' Then
+	    For Rec_RBS In C_Rollback_Segs (Rec_Tablespaces.TABLESPACE_NAME) Loop
+	      L_LINE := 'Create Rollback Segment '||Rec_RBS.SEGMENT_NAME||
+		   	   Chr(10)||'  Tablespace '||
+			   Rec_RBS.TABLESPACE_NAME||
+			   Chr(10)||'  '||'Storage (';
+              if Rec_RBS.MAX_EXTENTS > 2000000000 or Rec_RBS.MAX_EXTENTS is null then  /* DKapfer */
+                L_MAXEXTENTS := 'Unlimited';
+              else  			 
+                L_MAXEXTENTS := To_Char(Rec_RBS.MAX_EXTENTS);
+              end if; 
+	      L_LINE := L_LINE||Chr(10)||'    Initial     '||
+			       To_Char(Rec_RBS.INITIAL_EXTENT/1024)||' K'||
+			   Chr(10)||'    Next        '||
+			       To_Char(Rec_RBS.NEXT_EXTENT/1024)||' K'||
+			   Chr(10)||'    Minextents  '||
+			       To_Char(Rec_RBS.MIN_EXTENTS)||
+			   Chr(10)||'    Maxextents  '||
+			        L_MAXEXTENTS  ||            /* DKapfer */
+			   --   Rec_RBS.MAX_EXTENTS||       /* DKapfer */
+			   Chr(10)||'    Optimal     '||
+			       To_Char(Rec_RBS.MIN_EXTENTS * 
+				       Rec_RBS.NEXT_EXTENT/1024)||' K'||Chr(10)
+			   ||'          )'||Chr(10)||'/'||Chr(10)
+			   ;
+	      dbms_output.put_line(L_LINE);
+            End Loop;
+          End If;
 	End Loop;
 
         -- 
         -- Alter all Rollback segments Online ...
         --
-
-        For Rec_RBSO In C_Rollback_Online Loop
-          L_LINE := 'Alter Rollback Segment '||Rec_RBSO.SEGMENT_NAME||' Online;';
+        If L_UNDOMODE != 'auto' Then
+          For Rec_RBSO In C_Rollback_Online Loop
+            L_LINE := 'Alter Rollback Segment '||Rec_RBSO.SEGMENT_NAME||' Online;';
+	    dbms_output.put_line(L_LINE);
+          End Loop;
+	  L_LINE := Chr(10);
 	  dbms_output.put_line(L_LINE);
-        End Loop;
-	L_LINE := Chr(10);
-	dbms_output.put_line(L_LINE);
-
+	End If;
 
 	--
 	-- Get the profiles information
 	--
-	
 	For Rec_Prof In C_Profiles Loop
 	  L_LINE := 'Create Profile '||Rec_Prof.PROFILE
 	    ||' Limit SESSIONS_PER_USER Default;';
@@ -460,7 +441,6 @@ Begin
 	  L_LINE := Chr(10);
 	  dbms_output.put_line(L_LINE);
 	End Loop;
-
 
 	--
 	-- Get the data for the Admins
@@ -536,7 +516,7 @@ Spool ${USERSPOOL}.sql
 Declare
 	-- User information
 	Cursor C_User_Info Is
-	Select USERNAME,DEFAULT_TABLESPACE,TEMPORARY_TABLESPACE,PROFILE,ACCOUNT_STATUS
+	Select USERNAME,DEFAULT_TABLESPACE,TEMPORARY_TABLESPACE,PROFILE,ACCOUNT_STATUS,PASSWORD
 	 From  DBA_USERS
 	 Where lower(USERNAME) Not In ('sys','system','outln','dbsnmp')
 	 Order By USER_ID;
@@ -561,7 +541,7 @@ Begin
 
 	  L_LINE :=
 	    'Create User '||Rec_UserData.USERNAME
-	    ||' Identified By '||Rec_UserData.USERNAME||Chr(10)||L4
+	    ||' Identified By Values '''||Rec_UserData.PASSWORD||''''||Chr(10)||L4
 	    ||'Default Tablespace '||Rec_UserData.DEFAULT_TABLESPACE||Chr(10)||L4
 	    ||'Temporary Tablespace '||Rec_UserData.TEMPORARY_TABLESPACE||Chr(10)||L4
 	    ||'Profile '||Rec_UserData.PROFILE
@@ -595,6 +575,8 @@ Spool ${ROLESPOOL}.sql
 
 Declare
         -- Role information
+        Cursor C_Roles Is
+        Select * From DBA_ROLES;
 	Cursor C_Role_Info Is
 	Select * From DBA_ROLE_PRIVS
 	 Where lower(GRANTEE) Not In ('sys','system','outln','dbsnmp')
@@ -607,21 +589,31 @@ Declare
 
 Begin	
    dbms_output.put_line('Spool ${ROLESPOOL}.log');
-	For Rec_Role In C_Role_Info Loop
-	  L_LINE := 'GRANT '||Rec_Role.GRANTED_ROLE
-	    ||' To '||Rec_Role.GRANTEE;
-	  If Rec_Role.ADMIN_OPTION = 'YES' Then
-	    L_LINE := L_LINE||' With Admin Option';
-	  End If;
-	  L_LINE := L_LINE||';';
-	  dbms_output.put_line(L_LINE);
-	End Loop;
-	L_LINE := '/'||Chr(10)||Chr(10);
-	dbms_output.put_line(L_LINE);
-
-	L_LINE := 'Spool Off'||Chr(10);
-
-	dbms_output.put_line(L_LINE);
+   dbms_output.put_line('--'||Chr(10)||'-- Creating Roles'||Chr(10)||'--');
+   For R_R In C_Roles Loop
+     L_LINE := 'CREATE ROLE '||R_R.ROLE;
+     If R_R.PASSWORD_REQUIRED = 'GLOBAL' Then
+       L_LINE := L_LINE||' IDENTIFIED GLOBALLY';
+     End If;
+     If R_R.PASSWORD_REQUIRED = 'YES' Then
+       L_LINE := L_LINE||' IDENTIFIED BY '||R_R.ROLE;
+     End If;
+     dbms_output.put_line(L_LINE||';');
+   End Loop;
+   dbms_output.put_line(Chr(10)||'--'||Chr(10)||'-- Granting Roles'||Chr(10)||'--');
+   For Rec_Role In C_Role_Info Loop
+     L_LINE := 'GRANT '||Rec_Role.GRANTED_ROLE
+       ||' To '||Rec_Role.GRANTEE;
+     If Rec_Role.ADMIN_OPTION = 'YES' Then
+       L_LINE := L_LINE||' With Admin Option';
+     End If;
+     L_LINE := L_LINE||';';
+     dbms_output.put_line(L_LINE);
+   End Loop;
+   L_LINE := '/'||Chr(10)||Chr(10);
+   dbms_output.put_line(L_LINE);
+   L_LINE := 'Spool Off'||Chr(10);
+   dbms_output.put_line(L_LINE);
 End;
 /
 Spool Off
@@ -705,6 +697,68 @@ End;
 /
 Spool Off
 
+-- ===============================================[ Public Synonyms/DB_Links Part ]===
+
+Spool ${SYNONYMS}.sql
+Declare
+	Cursor C_PubSyns Is
+	Select * From DBA_SYNONYMS
+         Where owner='PUBLIC'
+           And table_owner Not In ('SYS','SYSTEM');
+        Cursor C_Links Is
+         Select u.name owner,l.name name,l.userid userid,l.password password,l.host host
+           From sys.link$ l, sys.user$ u
+          Where l.owner# = u.user#
+          Order By l.name;
+
+ 	L_LINE 		Varchar2(2000);		-- A line to output
+	L6		Varchar2(9);		-- 6 spaces
+	L4		Varchar2(9);		-- 4 spaces
+	L2		Varchar2(9);		-- 2 spaces
+	
+Begin
+   dbms_output.put_line('Spool ${SYNONYMS}.log');
+   dbms_output.put_line('');
+   L_LINE := '--'||Chr(10)||'-- Creating public DB Links'||Chr(10)||'--';
+   dbms_output.put_line(L_LINE);
+   For Rec_Li in C_Links Loop
+     If Rec_Li.owner = 'PUBLIC' Then
+       L_LINE := 'CREATE PUBLIC DATABASE LINK '||Rec_Li.name||' CONNECT TO '||
+                 Rec_Li.userid||' IDENTIFIED BY "'||Rec_Li.password||'" USING '''||
+                 Rec_Li.host||''';';
+     Else
+       dbms_output.put_line('-- Private link for '||Rec_Li.owner||':');
+       L_LINE := '-- CREATE DATABASE LINK '||Rec_Li.name;
+       If Rec_Li.userid Is Not Null Then
+         L_LINE := L_LINE||' CONNECT TO '||Rec_Li.userid||' IDENTIFIED BY "'||Rec_Li.password||'"';
+       End If;
+       L_LINE := L_LINE||' USING '''||Rec_Li.host||''';';
+     End If;
+     dbms_output.put_line(L_LINE);
+   End Loop;
+   
+   L_LINE := Chr(10)||'--'||Chr(10)||'-- Creating public DB Links'||Chr(10)||'--';
+   dbms_output.put_line(L_LINE);
+	For Rec_Syn In C_PubSyns Loop
+	  L_LINE := 'CREATE PUBLIC SYNONYM '||Rec_Syn.SYNONYM_NAME||' For '||
+	            Rec_Syn.TABLE_OWNER||'.'||Rec_Syn.TABLE_NAME;
+	  If Rec_Syn.DB_LINK Is Not Null Then
+	    L_LINE := L_LINE||'@'||Rec_Syn.DB_LINK;
+	  End If;
+	  L_LINE := L_LINE||';';
+	  dbms_output.put_line(L_LINE);
+	End Loop;
+	L_LINE := '/'||Chr(10)||Chr(10);
+	dbms_output.put_line(L_LINE);
+
+	L_LINE := 'Spool Off'||Chr(10);
+
+	dbms_output.put_line(L_LINE);
+End;
+/
+Spool Off
+
+
 Exit
 
 EOF
@@ -712,5 +766,3 @@ EOF
 echo "Reverse engineering of DBCreate Sripts for $ORACLE_SID finished."
 
 exit 0
-
- 
