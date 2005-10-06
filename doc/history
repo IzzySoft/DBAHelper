@@ -3,6 +3,22 @@ $Id$
 History for DBAHelper
 =====================
 
+v0.1.5
+-------------------
+* Generate_createdb.sh: Default Storage parameters for Tablespaces are now
+  only generated for dictionary managed TS (causes errors on creating locally
+  managed TS)
++ Generate_createdb.sh: Temporary TS statement is now also created
+* Generate_createdb.sh: Rollback Segments are no longer created (and "altered
+  online") when database is in auto undo mode
++ Generate_createdb.sh: added export of public synonyms and database links (not
+  owned by SYS or SYSTEM).
++ Generate_createdb.sh: Now also creating roles
++ Generate_createdb.sh: CREATE USERS are now done with the correct password
+  (using the undocumented "identified by values" feature)
++ analobj.sh now supports additional parameter --noanalyze (affects tables
+  only, and then directly gives reports about chained rows)
+
 v0.1.4 (14.07.2005)
 -------------------
 + added the Generate_createdb.sh script to the package

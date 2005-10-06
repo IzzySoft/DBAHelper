@@ -24,6 +24,7 @@ while [ -n "$1" ] ; do
     -l) shift; LOGAL=$1;;
     -t) shift; TR_TEMP=$1;;
     -o) shift; TR_OWNER=$1;;
+    --noanalyze) analyze=0;;
   esac
   shift
 done

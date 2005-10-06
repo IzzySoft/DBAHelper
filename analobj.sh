@@ -10,7 +10,7 @@ if [ -z "$3" ]; then
   SCRIPT=${0##*/}
   echo
   echo "============================================================================"
-  echo "${SCRIPT}  (c) 2003-2005 by Itzchak Rehberg & IzzySoft (devel@izzysoft.de)"
+  echo "${SCRIPT}  (c) 2003-2004 by Itzchak Rehberg & IzzySoft (devel@izzysoft.de)"
   echo "----------------------------------------------------------------------------"
   echo "This script is intended to analyze objects for a given schema. First"
   echo "configure your SYS user / passwd in the 'globalconf' file, then call this"
@@ -23,6 +23,7 @@ if [ -z "$3" ]; then
   echo "     -p <Password>"
   echo "     -s <ORACLE_SID/Connection String for Target DB>"
   echo "     -u <username>"
+  echo "     --noanalyze"
   echo "----------------------------------------------------------------------------"
   echo "where <ObjectType> is either TABLE, INDEX or ALL."
   echo "============================================================================"
@@ -35,13 +36,16 @@ fi
 SCHEMA=$2
 OBJECTTYPE=$3
 
+# Set defaults
+analyze=1
+
 # Read the global config
 BINDIR=${0%/*}
 CONFIG=$BINDIR/globalconf
 . $BINDIR/configure $* -f analobj
 
 # ====================================================[ Script starts here ]===
-version='0.1.3'
+version='0.1.4'
 #cat >dummy.out<<EOF
 $ORACLE_HOME/bin/sqlplus -s /NOLOG <<EOF
 
@@ -58,6 +62,7 @@ SPOOL $SPOOL
 DECLARE
  statement varchar2(300);
  antab NUMBER; anidx NUMBER;
+ analyze NUMBER;
  L_LINE VARCHAR2(255);
  TIMESTAMP VARCHAR2(20);
  VERSION VARCHAR2(20);
@@ -93,6 +98,7 @@ DECLARE
 BEGIN
  VERSION := '$version';
  LOGALL := $LOGALL;
+ analyze := $analyze;
  IF LOWER('$OBJECTTYPE') = 'all' THEN
    antab := 1; anidx := 1;
  ELSE
@@ -107,14 +113,16 @@ BEGIN
             ' $CALCSTAT statistics for $OBJECTTYPE objects on $SCHEMA...';
   dbms_output.put_line(L_LINE);
   IF antab = 1 THEN
-    FOR rec IN cur LOOP
-      statement := 'ANALYZE TABLE "'||rec.owner||'"."'||rec.table_name||'" $CALCSTAT STATISTICS';
-      IF LOGALL = 1 THEN
-        SELECT TO_CHAR(SYSDATE,'YYYY-MM-DD HH24:MI:SS') INTO TIMESTAMP FROM DUAL;
-        dbms_output.put_line('+ '||TIMESTAMP||' '||statement);
-      END IF;
-      anobj(statement,'table',rec.owner||'.'||rec.table_name);
-    END LOOP;
+    IF analyze = 1 THEN
+      FOR rec IN cur LOOP
+        statement := 'ANALYZE TABLE "'||rec.owner||'"."'||rec.table_name||'" $CALCSTAT STATISTICS';
+        IF LOGALL = 1 THEN
+          SELECT TO_CHAR(SYSDATE,'YYYY-MM-DD HH24:MI:SS') INTO TIMESTAMP FROM DUAL;
+          dbms_output.put_line('+ '||TIMESTAMP||' '||statement);
+        END IF;
+        anobj(statement,'table',rec.owner||'.'||rec.table_name);
+      END LOOP;
+    END IF;
     L_LINE := CHR(10)||'List of tables with chained/migrated rows for schema "$SCHEMA", which '||CHR(10)||
               'have at least "$NUMROWS lines" and "$CHAINCNT chains":'||CHR(10);
     dbms_output.put_line(L_LINE);
