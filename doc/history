@@ -3,7 +3,7 @@ $Id$
 History for DBAHelper
 =====================
 
-v0.1.5
+v0.1.5 (27.10.2005)
 -------------------
 * Generate_createdb.sh: Default Storage parameters for Tablespaces are now
   only generated for dictionary managed TS (causes errors on creating locally
