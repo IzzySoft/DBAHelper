@@ -18,6 +18,8 @@ v0.1.5
   (using the undocumented "identified by values" feature)
 + analobj.sh now supports additional parameter --noanalyze (affects tables
   only, and then directly gives reports about chained rows)
+* Generate_createdb.sh: Moved bootstrapping stuff to end of first segment
+  (since these Oracle scripts stop spooling the log file)
 
 v0.1.4 (14.07.2005)
 -------------------

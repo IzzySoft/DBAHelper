@@ -109,8 +109,13 @@ Rem		 - Rollback Segments are no longer created (and "altered online") when
 Rem		   database is in auto undo mode
 Rem		 - added export of public synonyms and database links (not owned by SYS or SYSTEM).
 Rem		 - Now also creating roles
+Rem             05-10-27 A I Rehberg
 Rem		 - CREATE USERS are now done with the correct password (using the undocumented
-Rem		   "identified by values" feature)
+Rem		   "identified by values" feature), same applies to the ALTER USER for the
+Rem                admin accounts (SYS and SYSTEM)
+Rem              - moved the bootstrapping stuff to the end of the createDB script, since catproc
+Rem                stops the SPOOLing (and thus the created log stops after it)
+
 
 Rem
 
@@ -151,7 +156,7 @@ Declare
 	 
 	-- Administrative User information
 	Cursor C_Admin_Info Is
-	Select USERNAME,DEFAULT_TABLESPACE,TEMPORARY_TABLESPACE
+	Select USERNAME,DEFAULT_TABLESPACE,TEMPORARY_TABLESPACE,PASSWORD
 	 From  DBA_USERS
 	 Where lower(USERNAME) In ('sys','system')
 	 Order By USER_ID;
@@ -280,16 +285,6 @@ Begin
 				'	 ) Size '||To_Char(L_LOGSIZE)||' K ';
 	    dbms_output.put_line(L_LINE);
 	End Loop;
-
-	--
-	-- The bootstrapping stuff ... 
-	--
-	L_LINE := '/'||Chr(10)||Chr(10)||
-		     'Set TERMOUT Off ECHO Off'||Chr(10)||
-		     '@${ORACLE_HOME}/rdbms/admin/catalog.sql'||Chr(10)||
-		     '@${ORACLE_HOME}/rdbms/admin/catproc.sql'||Chr(10)||
-		     'Set TERMOUT On ECHO On'||Chr(10)||Chr(10);
-	dbms_output.put_line(L_LINE);
 
 	--
 	-- The Rollback segments in the SYSTEM tablespace 
@@ -457,12 +452,23 @@ Begin
 
 	  L_LINE := L_LINE||
 	    'Alter User '||Rec_AdminData.USERNAME||Chr(10)||L4
+	    ||'Identified By Values '''||Rec_AdminData.PASSWORD||''''||Chr(10)||L4
 	    ||'Default Tablespace '||Rec_AdminData.DEFAULT_TABLESPACE||Chr(10)||L4
 	    ||'Temporary Tablespace '||Rec_AdminData.TEMPORARY_TABLESPACE||';'
 	    ||Chr(10)||'/'||Chr(10);
 	End Loop;
 	
 	L_LINE := L_LINE||Chr(10);
+	dbms_output.put_line(L_LINE);
+
+	--
+	-- The bootstrapping stuff ... 
+	--
+	L_LINE := '/'||Chr(10)||Chr(10)||
+		     'Set TERMOUT Off ECHO Off'||Chr(10)||
+		     '@${ORACLE_HOME}/rdbms/admin/catalog.sql'||Chr(10)||
+		     '@${ORACLE_HOME}/rdbms/admin/catproc.sql'||Chr(10)||
+		     'Set TERMOUT On ECHO On'||Chr(10)||Chr(10);
 	dbms_output.put_line(L_LINE);
 
         --
