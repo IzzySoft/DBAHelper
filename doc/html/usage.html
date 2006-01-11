@@ -176,6 +176,27 @@
   <code>idxrebuild_inv.sh</code> above.</p>
  </td></tr>
 
+ <tr><th class="th_sub"><a name="lazywaste"></a>lazywaste.sh</th></tr>
+ <tr><td class="text">
+  <p>Some users show the bad behaviour to log into the database one day, and then
+  leave the session idle/inactive for many days (if not even weeks or months). The
+  affected sessions thus waste resources you'ld prefer to use otherwise, so you
+  may want to kill at least some of the top wasters. To find those, this script
+  can be used. It gives you an overview on</p><ul>
+   <li>size and used space in your default temporary tablespace</li>
+   <li>(max) allocated and used PGA</li>
+   <li>number of lazy sessions (if any) and the resources wasted by them</li>
+   <li>top N sessions ordered by PGA usage</li>
+   <li>top N sessions ordered by Temp usage</li></ul>
+  <p>Within the script file itself (at the very top) you can adjust the default
+  values for how long a session must be inactive to be counted "lazy", and how
+  many "top N" statements should be listed. The script accepts the SID of the
+  database to connect to as only parameter (specifying "-h" instead shows the
+  syntax). If called w/o parameter, the environment variable <code>$ORACLE_SID</code>
+  will be evaluated. The database connection then is established using SQL*Plus and
+  OS verification ("<code>/ as sysdba</code>").
+ </td></tr>
+
  <tr><th class="th_sub"><a name="tabmove"></a>tabmove.sh</th></tr>
  <tr><td class="text">
   <p>As with Oracle 9, each tablespace can have its own block size settings: so

@@ -65,6 +65,7 @@ without any argument, so they will show it.
                        | than 1 extent, starting with the smallest and in between
                        | executing ALTER TABLESPACE..COALESCE to re-gain unused
                        | space best
+  lazywaste.sh         | Show resources wasted by "lazy" sessions
   tabmove.sh           | Moves tables from one tablespace to another
   tabreorg.sh          | Reorganizes fragmented tables (chained rows)
 
