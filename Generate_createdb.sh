@@ -38,6 +38,33 @@ SYSGRANTS="${ORACLE_SID}_sys_grants"
 OBJGRANTS="${ORACLE_SID}_obj_grants"
 SYNONYMS="${ORACLE_SID}_pub_synonyms"
 
+# =================================================[ PL/SQL Print function ]===
+printfunc=`cat << ENDPRINT
+  FUNCTION strpos (str IN VARCHAR2,needle IN VARCHAR2,startpos NUMBER) RETURN NUMBER IS
+    pos NUMBER; strsub VARCHAR2(255);
+    BEGIN
+      strsub := SUBSTR(str,1,255);
+      pos    := INSTR(strsub,needle,startpos);
+      return pos;
+    END;
+
+  PROCEDURE print(line IN VARCHAR2) IS
+    pos NUMBER;
+    BEGIN
+      dbms_output.put_line(line);
+    EXCEPTION
+      WHEN OTHERS THEN
+        IF SQLERRM LIKE '%ORU-10028%' THEN
+          pos := strpos(line,' ',-1);
+	  print(SUBSTR(line,1,pos));
+	  pos := pos +1;
+	  print(SUBSTR(line,pos));
+	ELSE
+          dbms_output.put_line('-- *!* Problem in print() *!*');
+	END IF;
+    END;
+ENDPRINT`
+
 # ===========================================================[ Do the job! ]===
 
 sqlplus -s "/as sysdba" <<EOF
@@ -109,15 +136,12 @@ Rem		 - Rollback Segments are no longer created (and "altered online") when
 Rem		   database is in auto undo mode
 Rem		 - added export of public synonyms and database links (not owned by SYS or SYSTEM).
 Rem		 - Now also creating roles
-Rem             05-10-27 A I Rehberg
 Rem		 - CREATE USERS are now done with the correct password (using the undocumented
 Rem		   "identified by values" feature), same applies to the ALTER USER for the
 Rem                admin accounts (SYS and SYSTEM)
 Rem              - moved the bootstrapping stuff to the end of the createDB script, since catproc
 Rem                stops the SPOOLing (and thus the created log stops after it)
 
-
-Rem
 
 Set TERMOUT OFF
 Set SERVEROUTPUT On Size 1000000
@@ -200,6 +224,8 @@ Declare
 	L2		Varchar2(9);		-- 2 spaces
 	L_MAXEXTENTS    Varchar2(20);           -- DKapfer required for 'Unlimited'
 
+$printfunc
+
 Begin
 	L2 := '  ';
 	L4 := L2||L2;
@@ -210,7 +236,7 @@ Begin
 		  'Spool ${DBSPOOL}.log'||Chr(10)||
 		  'Startup nomount'||Chr(10); 
  
-	dbms_output.put_line(L_LINE);
+	print(L_LINE);
 
 	Select NAME, LOG_MODE 
  	  Into L_SID, L_LOGMODE 
@@ -238,7 +264,7 @@ Begin
 		 L4||'Character Set  "'||L_CHRSET||'"'||Chr(10)||
 		 L4||'Datafile';
 
-	dbms_output.put_line(L_LINE);
+	print(L_LINE);
 
 	--
 	-- Get the datafiles for the SYSTEM tablespace
@@ -259,7 +285,7 @@ Begin
 	  End If;
         End Loop;
 	L_LINE := L_LINE || Chr(10) || L4 || 'Logfile ';
-	dbms_output.put_line(L_LINE);
+	print(L_LINE);
 
 	--
 	-- Create the LOGFILE bits ...
@@ -283,7 +309,7 @@ Begin
 	    End Loop;   
 	    L_LINE := L_LINE || Chr(10)||L6||L2||
 				'	 ) Size '||To_Char(L_LOGSIZE)||' K ';
-	    dbms_output.put_line(L_LINE);
+	    print(L_LINE);
 	End Loop;
 
 	--
@@ -313,7 +339,7 @@ Begin
 				     Rec_RBS.NEXT_EXTENT/1024)||' K'||Chr(10)
 			 ||'          )'||Chr(10)||'/'||Chr(10)
 			 ;
-	  dbms_output.put_line(L_LINE);
+	  print(L_LINE);
         End Loop;
 
 
@@ -322,7 +348,7 @@ Begin
 	--
 	For Rec_Tablespaces In C_Tablespaces Loop
 	  L_LINE := 'Create Tablespace '||Rec_Tablespaces.TABLESPACE_NAME;
-	  dbms_output.put_line(L_LINE);
+	  print(L_LINE);
 	  FirstTime := TRUE;
 	  For Rec_Datafiles In 
 		C_Datafiles ( Rec_Tablespaces.TABLESPACE_NAME ) Loop
@@ -338,7 +364,7 @@ Begin
 	    If Rec_Datafiles.AUTOEXTENSIBLE = 'YES' Then
 	       L_LINE := L_LINE||' Autoextend On';
 	    End If;
-	    dbms_output.put_line(L_LINE);
+	    print(L_LINE);
 	  End Loop;
 
 	  For Rec_TS_Info In 
@@ -371,7 +397,7 @@ Begin
 	    L_LINE := L_LINE||' Minimum Extent '||Rec_TS_Info.MIN_EXTLEN;
 	    L_LINE := L_LINE||Chr(10)||' '||
 			Rec_TS_Info.CONTENTS||Chr(10)||'/'||Chr(10)||Chr(10);
-	    dbms_output.put_line(L_LINE);
+	    print(L_LINE);
 	  End Loop;
 	
 	  -- 
@@ -402,7 +428,7 @@ Begin
 				       Rec_RBS.NEXT_EXTENT/1024)||' K'||Chr(10)
 			   ||'          )'||Chr(10)||'/'||Chr(10)
 			   ;
-	      dbms_output.put_line(L_LINE);
+	      print(L_LINE);
             End Loop;
           End If;
 	End Loop;
@@ -413,10 +439,10 @@ Begin
         If L_UNDOMODE != 'auto' Then
           For Rec_RBSO In C_Rollback_Online Loop
             L_LINE := 'Alter Rollback Segment '||Rec_RBSO.SEGMENT_NAME||' Online;';
-	    dbms_output.put_line(L_LINE);
+	    print(L_LINE);
           End Loop;
 	  L_LINE := Chr(10);
-	  dbms_output.put_line(L_LINE);
+	  print(L_LINE);
 	End If;
 
 	--
@@ -425,16 +451,16 @@ Begin
 	For Rec_Prof In C_Profiles Loop
 	  L_LINE := 'Create Profile '||Rec_Prof.PROFILE
 	    ||' Limit SESSIONS_PER_USER Default;';
-	  dbms_output.put_line(L_LINE);
+	  print(L_LINE);
 	  For Rec_ProfData In C_Profile_Info (Rec_Prof.PROFILE) Loop
 	    L_LINE := 
 	      'Alter Profile '||Rec_ProfData.PROF||' LIMIT '
 	      ||Rec_ProfData.RESOURCE_NAME||' '
 	      ||Rec_ProfData.LIMIT||';';
-	    dbms_output.put_line(L_LINE);
+	    print(L_LINE);
 	  End Loop;
 	  L_LINE := Chr(10);
-	  dbms_output.put_line(L_LINE);
+	  print(L_LINE);
 	End Loop;
 
 	--
@@ -459,7 +485,7 @@ Begin
 	End Loop;
 	
 	L_LINE := L_LINE||Chr(10);
-	dbms_output.put_line(L_LINE);
+	print(L_LINE);
 
 	--
 	-- The bootstrapping stuff ... 
@@ -469,7 +495,7 @@ Begin
 		     '@${ORACLE_HOME}/rdbms/admin/catalog.sql'||Chr(10)||
 		     '@${ORACLE_HOME}/rdbms/admin/catproc.sql'||Chr(10)||
 		     'Set TERMOUT On ECHO On'||Chr(10)||Chr(10);
-	dbms_output.put_line(L_LINE);
+	print(L_LINE);
 
         --
         -- Catalog
@@ -480,7 +506,7 @@ Begin
 		  '@${ORACLE_HOME}/sqlplus/admin/pupbld'||Chr(10)||  /*DKapfer*/
 		  'Set TERMOUT On ECHO On'||Chr(10);
 
-	dbms_output.put_line(L_LINE);
+	print(L_LINE);
 
         --
         -- ArcLog
@@ -489,14 +515,14 @@ Begin
 		  'Shutdown'||Chr(10)||
 		  'Startup'||Chr(10)||Chr(10);
 
-	dbms_output.put_line(L_LINE);
+	print(L_LINE);
 
 	If L_LOGMODE = 'ARCHIVELOG' Then
 	  L_LINE := 'Shutdown immediate'||Chr(10)||
                     'Startup Mount'||Chr(10)||
                     'Alter Database ARCHIVELOG;'||Chr(10)||
                     'Alter Database Open;'||Chr(10);
-	  dbms_output.put_line(L_LINE);
+	  print(L_LINE);
 	End If;
 
         --
@@ -505,13 +531,13 @@ Begin
 	L_LINE := 'Spool Off'||Chr(10)||Chr(10)||
 	          '--'||Chr(10)||'-- Other scripts to run (comment out unwanted ones here)'||
 	          Chr(10)||'--';
-	dbms_output.put_line(L_LINE);
+	print(L_LINE);
 	L_LINE := '@${USERSPOOL}.sql'||Chr(10)||
 	          '@${ROLESPOOL}.sql'||Chr(10)||
 	          '@${SYSGRANTS}.sql'||Chr(10)||
 	          '@${OBJGRANTS}.sql'||Chr(10)||
 	          'Exit'||Chr(10);
-	dbms_output.put_line(L_LINE);
+	print(L_LINE);
 End;
 /
 Spool Off
@@ -537,9 +563,10 @@ Declare
 	L4		Varchar2(9);		-- 4 spaces
 	L2		Varchar2(9);		-- 2 spaces
 
+$printfunc
 
 Begin
-   dbms_output.put_line('Spool createusers_${ORACLE_SID}.log');
+   print('Spool createusers_${ORACLE_SID}.log');
 	--
 	-- Get the data for the other users
 	--
@@ -552,7 +579,7 @@ Begin
 	    ||'Temporary Tablespace '||Rec_UserData.TEMPORARY_TABLESPACE||Chr(10)||L4
 	    ||'Profile '||Rec_UserData.PROFILE
 	    ||';'||Chr(10)||'/'||Chr(10);
-	  dbms_output.put_line(L_LINE);
+	  print(L_LINE);
 	End Loop;
 	
 	For Rec_Quota In C_Quota_Info Loop
@@ -563,14 +590,14 @@ Begin
 	    L_LINE := L_LINE||Rec_Quota.MAX_BYTES||' On ';
 	  End If;
 	  L_LINE := L_LINE||Rec_Quota.TABLESPACE_NAME||';';
-	  dbms_output.put_line(L_LINE);
+	  print(L_LINE);
 	End Loop;
 	L_LINE := '/'||Chr(10)||Chr(10);
-	dbms_output.put_line(L_LINE);
+	print(L_LINE);
 
 	L_LINE := 'Spool Off'||Chr(10);
 
-	dbms_output.put_line(L_LINE);
+	print(L_LINE);
 End;
 /
 Spool Off
@@ -593,9 +620,11 @@ Declare
 	L4		Varchar2(9);		-- 4 spaces
 	L2		Varchar2(9);		-- 2 spaces
 
+$printfunc
+
 Begin	
-   dbms_output.put_line('Spool ${ROLESPOOL}.log');
-   dbms_output.put_line('--'||Chr(10)||'-- Creating Roles'||Chr(10)||'--');
+   print('Spool ${ROLESPOOL}.log');
+   print('--'||Chr(10)||'-- Creating Roles'||Chr(10)||'--');
    For R_R In C_Roles Loop
      L_LINE := 'CREATE ROLE '||R_R.ROLE;
      If R_R.PASSWORD_REQUIRED = 'GLOBAL' Then
@@ -604,9 +633,9 @@ Begin
      If R_R.PASSWORD_REQUIRED = 'YES' Then
        L_LINE := L_LINE||' IDENTIFIED BY '||R_R.ROLE;
      End If;
-     dbms_output.put_line(L_LINE||';');
+     print(L_LINE||';');
    End Loop;
-   dbms_output.put_line(Chr(10)||'--'||Chr(10)||'-- Granting Roles'||Chr(10)||'--');
+   print(Chr(10)||'--'||Chr(10)||'-- Granting Roles'||Chr(10)||'--');
    For Rec_Role In C_Role_Info Loop
      L_LINE := 'GRANT '||Rec_Role.GRANTED_ROLE
        ||' To '||Rec_Role.GRANTEE;
@@ -614,12 +643,12 @@ Begin
        L_LINE := L_LINE||' With Admin Option';
      End If;
      L_LINE := L_LINE||';';
-     dbms_output.put_line(L_LINE);
+     print(L_LINE);
    End Loop;
    L_LINE := '/'||Chr(10)||Chr(10);
-   dbms_output.put_line(L_LINE);
+   print(L_LINE);
    L_LINE := 'Spool Off'||Chr(10);
-   dbms_output.put_line(L_LINE);
+   print(L_LINE);
 End;
 /
 Spool Off
@@ -641,9 +670,10 @@ Declare
 	L4		Varchar2(9);		-- 4 spaces
 	L2		Varchar2(9);		-- 2 spaces
 
+$printfunc
 
 Begin
-   dbms_output.put_line('Spool ${SYSGRANTS}.log');
+   print('Spool ${SYSGRANTS}.log');
 	For Rec_SysPriv In C_SysPriv_Info Loop
 	  L_LINE := 'GRANT '||Rec_SysPriv.Privilege
 	    ||' To '||Rec_SysPriv.GRANTEE;
@@ -651,14 +681,14 @@ Begin
 	    L_LINE := L_LINE||' With Admin Option';
 	  End If;
 	  L_LINE := L_LINE||';';
-	  dbms_output.put_line(L_LINE);
+	  print(L_LINE);
 	End Loop;
 	L_LINE := '/'||Chr(10)||Chr(10);
-	dbms_output.put_line(L_LINE);
+	print(L_LINE);
 
 	L_LINE := 'Spool Off'||Chr(10);
 
-	dbms_output.put_line(L_LINE);
+	print(L_LINE);
 End;
 /
 Spool Off
@@ -680,9 +710,11 @@ Declare
 	L6		Varchar2(9);		-- 6 spaces
 	L4		Varchar2(9);		-- 4 spaces
 	L2		Varchar2(9);		-- 2 spaces
+
+$printfunc
 	
 Begin
-   dbms_output.put_line('Spool ${OBJGRANTS}.log');
+   print('Spool ${OBJGRANTS}.log');
 	For Rec_TabPriv In C_TabPriv_Info Loop
 	  L_LINE := 'GRANT '||Rec_TabPriv.PRIVILEGE
 	    ||' On '||Rec_TabPriv.GRANTOR||'.'||Rec_TabPriv.TABLE_NAME
@@ -691,14 +723,14 @@ Begin
 	    L_LINE := L_LINE||' With Grant Option';
 	  End If;
 	  L_LINE := L_LINE||';';
-	  dbms_output.put_line(L_LINE);
+	  print(L_LINE);
 	End Loop;
 	L_LINE := '/'||Chr(10)||Chr(10);
-	dbms_output.put_line(L_LINE);
+	print(L_LINE);
 
 	L_LINE := 'Spool Off'||Chr(10);
 
-	dbms_output.put_line(L_LINE);
+	print(L_LINE);
 End;
 /
 Spool Off
@@ -721,30 +753,32 @@ Declare
 	L6		Varchar2(9);		-- 6 spaces
 	L4		Varchar2(9);		-- 4 spaces
 	L2		Varchar2(9);		-- 2 spaces
+
+$printfunc
 	
 Begin
-   dbms_output.put_line('Spool ${SYNONYMS}.log');
-   dbms_output.put_line('');
+   print('Spool ${SYNONYMS}.log');
+   print('');
    L_LINE := '--'||Chr(10)||'-- Creating public DB Links'||Chr(10)||'--';
-   dbms_output.put_line(L_LINE);
+   print(L_LINE);
    For Rec_Li in C_Links Loop
      If Rec_Li.owner = 'PUBLIC' Then
        L_LINE := 'CREATE PUBLIC DATABASE LINK '||Rec_Li.name||' CONNECT TO '||
                  Rec_Li.userid||' IDENTIFIED BY "'||Rec_Li.password||'" USING '''||
                  Rec_Li.host||''';';
      Else
-       dbms_output.put_line('-- Private link for '||Rec_Li.owner||':');
+       print('-- Private link for '||Rec_Li.owner||':');
        L_LINE := '-- CREATE DATABASE LINK '||Rec_Li.name;
        If Rec_Li.userid Is Not Null Then
          L_LINE := L_LINE||' CONNECT TO '||Rec_Li.userid||' IDENTIFIED BY "'||Rec_Li.password||'"';
        End If;
        L_LINE := L_LINE||' USING '''||Rec_Li.host||''';';
      End If;
-     dbms_output.put_line(L_LINE);
+     print(L_LINE);
    End Loop;
    
    L_LINE := Chr(10)||'--'||Chr(10)||'-- Creating public DB Links'||Chr(10)||'--';
-   dbms_output.put_line(L_LINE);
+   print(L_LINE);
 	For Rec_Syn In C_PubSyns Loop
 	  L_LINE := 'CREATE PUBLIC SYNONYM '||Rec_Syn.SYNONYM_NAME||' For '||
 	            Rec_Syn.TABLE_OWNER||'.'||Rec_Syn.TABLE_NAME;
@@ -752,14 +786,14 @@ Begin
 	    L_LINE := L_LINE||'@'||Rec_Syn.DB_LINK;
 	  End If;
 	  L_LINE := L_LINE||';';
-	  dbms_output.put_line(L_LINE);
+	  print(L_LINE);
 	End Loop;
 	L_LINE := '/'||Chr(10)||Chr(10);
-	dbms_output.put_line(L_LINE);
+	print(L_LINE);
 
 	L_LINE := 'Spool Off'||Chr(10);
 
-	dbms_output.put_line(L_LINE);
+	print(L_LINE);
 End;
 /
 Spool Off
