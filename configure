@@ -25,10 +25,17 @@ while [ -n "$1" ] ; do
     -t) shift; TR_TEMP=$1;;
     -o) shift; TR_OWNER=$1;;
     --noanalyze) analyze=0;;
+    --nostats) stats=0;;
   esac
   shift
 done
 . $CONFIG $ARGS
+# ignore chain count percentage for tabreorg
+if [ "$stats" == "0" ]; then
+  TR_CHAINPCT=0
+  NUMROWS=0
+  CHAINCNT=0
+fi
 if [ -z "$ORACLE_CONNECT" ]; then
   ORACLE_CONNECT=$ORACLE_SID
 fi
