@@ -1,16 +1,48 @@
 #!/bin/bash
-#####################################################################
-# Find lazy sessions and list resources wasted by them
-#####################################################################
 # $Id$
+#
+#====================================================================
+# Find lazy sessions and list resources wasted by them
+#--------------------------------------------------------------------
+#                                                     Itzchak Rehberg
 
 # How many days a session must be inactive to be counted "lazy"?
 MIN_LAZY_AGE=10
 TOP_N_SESSIONS=5
 
-echo "###############################################################################"
-echo "# Lazy Session & Wastage lister         (c)2005 by Itzchak Rehberg & IzzySoft #"
-echo "###############################################################################"
+if [ -n "$1" ]; then
+  if [ "$1"=="-h" ]; then
+    ORACLE_SID=""
+  else
+    export ORACLE_SID=$1
+  fi
+fi
+if [ -z "$ORACLE_SID"]; then
+  SCRIPT=${0##*/}
+  echo
+  echo "============================================================================"
+  echo "${SCRIPT}      (c) 2005 by Itzchak Rehberg & IzzySoft (devel@izzysoft.de)"
+  echo "----------------------------------------------------------------------------"
+  echo "This script checks the database for wasted resources. It lists up the used"
+  echo "and overall space for the Temp TS and PGA, the space wasted by 'lazy'"
+  echo "sessions, plus the top N lazy sessions, where 'lazy' means long term"
+  echo "inactivity. You can configure the 'lazy interval' and how many top sessions"
+  echo "should be listed by modifying the values at the top of the script."
+  echo "----------------------------------------------------------------------------"
+  echo "Syntax: ${SCRIPT} [ORACLE_SID|-h]"
+  echo ""
+  echo "If no ORACLE_SID is specified on the commandline, or the '-h' parameter is"
+  echo "given instead, the environment variable ORACLE_SID is used. If this is not"
+  echo "specified either, this help text is displayed. The script connects to the"
+  echo "database using SQL*Plus with OS verification ('/ as sysdba')."
+  echo "============================================================================"
+  echo
+  exit 1
+fi
+
+echo "################################################################################"
+echo "# Lazy Session & Wastage lister         (c) 2005 by Itzchak Rehberg & IzzySoft #"
+echo "################################################################################"
 sqlplus -s "/as sysdba" <<EOF
  Set TERMOUT OFF
  Set SERVEROUTPUT On Size 1000000
@@ -22,7 +54,11 @@ sqlplus -s "/as sysdba" <<EOF
    TTS VARCHAR(30);
    TSSPACE NUMBER;
    TSUSED NUMBER;
+   TSUSED_ALL NUMBER;
    PGAWASTED NUMBER;
+   PGAUSED NUMBER;
+   PGAMAX NUMBER;
+   PGAALLOC NUMBER;
    SESSUM NUMBER;
    L_LINE VARCHAR2(255);
    CURSOR C_TopPGA IS
@@ -50,7 +86,10 @@ sqlplus -s "/as sysdba" <<EOF
       ORDER BY tmp_used DESC;
 
  BEGIN
+   -- --------------
    -- Global wastage
+   -- --------------
+   -- Temp TS
    SELECT property_value INTO TTS FROM database_properties WHERE property_name='DEFAULT_TEMP_TABLESPACE';
    SELECT SUM(ROUND ((bytes/1024/1024), 2)) INTO TSSPACE FROM dba_temp_files WHERE tablespace_name=TTS;
    IF TSSPACE IS NULL THEN
@@ -58,6 +97,10 @@ sqlplus -s "/as sysdba" <<EOF
    END IF;
    SELECT COUNT(sid) INTO SESSUM FROM v\$session
     WHERE sysdate - last_call_et/60/60/24 < SYSDATE -$MIN_LAZY_AGE AND username IS NOT NULL;
+   SELECT NVL(SUM (ROUND (((b.blocks * p.VALUE) / 1024 / 1024), 2)),0) INTO TSUSED_ALL
+     FROM v\$sort_usage b, v\$parameter p
+    WHERE p.NAME = 'db_block_size'
+      AND b.tablespace=TTS;
    SELECT SUM (ROUND (((b.blocks * p.VALUE) / 1024 / 1024), 2)) INTO TSUSED
      FROM v\$session a, v\$sort_usage b, v\$parameter p
     WHERE p.NAME = 'db_block_size'
@@ -65,6 +108,16 @@ sqlplus -s "/as sysdba" <<EOF
       AND a.saddr = b.session_addr
       AND b.tablespace=TTS
       AND sysdate - a.last_call_et/60/60/24 < SYSDATE -$MIN_LAZY_AGE;
+   -- PGA
+   SELECT ROUND(value/1024/1024,2) INTO PGAUSED
+     FROM v\$pgastat
+    WHERE name='total PGA inuse';
+   SELECT ROUND(value/1024/1024,2) INTO PGAMAX
+     FROM v\$pgastat
+    WHERE name='maximum PGA allocated';
+   SELECT ROUND(value/1024/1024,2) INTO PGAALLOC
+     FROM v\$pgastat
+    WHERE name='total PGA allocated';
    SELECT SUM (ROUND((c.pga_used_mem/1024/1024),2))
      INTO PGAWASTED
      FROM v\$session a, v\$process c, v\$parameter p
@@ -72,9 +125,10 @@ sqlplus -s "/as sysdba" <<EOF
       AND a.username IS NOT NULL
       AND a.paddr = c.addr
       AND sysdate - a.last_call_et/60/60/24 < SYSDATE -$MIN_LAZY_AGE;
-   dbms_output.put_line('Size of Default Temp TS "'||TTS||'" is '||TSSPACE||' MB.');
+   dbms_output.put_line('Default Temp TS "'||TTS||'": '||TSSPACE||' MB, '||TSUSED_ALL||' MB used.');
+   dbms_output.put_line('PGA (max) allocated: ('||PGAMAX||' MB) '||PGAALLOC||' MB, '||PGAUSED||' MB in use.');
    IF (SESSUM > 0) THEN
-     dbms_output.put_line(SESSUM||' "lazy" sessions waste '||NVL(TSUSED,0)||' MB in temporary TS "'||TTS||'" and '||NVL(PGAWASTED,0)||' MB PGA.');
+     dbms_output.put_line(SESSUM||' "lazy" sessions (inactive > $MIN_LAZY_AGE days) waste '||NVL(TSUSED,0)||' MB in TempTS and '||NVL(PGAWASTED,0)||' MB PGA.');
      -- Top N PGA waster
      L_LINE := 'TOP $TOP_N_SESSIONS PGA waster';
      dbms_output.put_line('+------------------------------------------------------------------------------+');
