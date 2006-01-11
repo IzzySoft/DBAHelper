@@ -3,6 +3,14 @@ $Id$
 History for DBAHelper
 =====================
 
+v0.1.6 (11.01.2006)
+-------------------
++ tabreorg.sh: Added parameter --nostats to force rebuild (e.g. if no stats
+  have been collected, so we know nothing about chain count etc.)
++ added lazywaste.sh to find out about wasted resources and lazy sessions
+* Generate_createdb.sh: Now using the print wrapper (from OraRep) (fixes some
+  broken output)
+
 v0.1.5 (27.10.2005)
 -------------------
 * Generate_createdb.sh: Default Storage parameters for Tablespaces are now
