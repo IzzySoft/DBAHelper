@@ -43,10 +43,19 @@
             statement (if different from the <code>ORACLE_SID</code>). This
             is used for the SQL <code>CONNECT</code> string only, while the
             <code>ORACLE_SID</code> is also used for the log file name.</td></tr>
+   <tr><td class="td_name"><code>--force</code></td>
+       <td class="text">Force reorganization regardless of chain percentage
+           (<code>tabreorg.sh</code>), or force the move/rebuild without the
+           <code>ONLINE</code> option in case it fails with it (<code>tabmove.sh</code>,
+           <code>tabreorg.sh</code> / <code>idxrebuild_all.sh</code>)</td></tr>
    <tr><td class="td_name" colspan="2" align="center"><code>analobj.sh</code> and <code>tabreorg.sh</code> parameters</td></tr>
-    <tr><td class="td_name"><code>-l</code></td>
+   <tr><td class="td_name"><code>-l</code></td>
         <td class="text">Override the <code>LOGALL</code> config variable. Specify
             1 (= On) or 0 (=off) as value.</td></tr>
+   <tr><td class="td_name"><code>--noanalyze</code></td>
+       <td class="text">Only print the chain stats without running an analyze before
+           (<code>analobj.sh</code> only). Useful if you regularly analyze your
+           schemata and thus can trust the existing stats.</td></tr>
    <tr><td class="td_name" colspan="2" align="center"><code>tabreorg.sh</code> parameters</td></tr>
     <tr><td class="td_name"><code>-o</code></td>
         <td class="text">Only work on objects of this owner</td></tr>
