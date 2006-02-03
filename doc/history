@@ -3,6 +3,12 @@ $Id$
 History for DBAHelper
 =====================
 
+v0.1.7
+-------------------
+* lazywaste.sh: some restructuring
+* updated some help messages within the scripts
++ added parameter --force to idxrebuild_all.sh, tabmove.sh and tabreorg.sh
+
 v0.1.6 (11.01.2006)
 -------------------
 + tabreorg.sh: Added parameter --nostats to force rebuild (e.g. if no stats
