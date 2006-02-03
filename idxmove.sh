@@ -11,10 +11,10 @@ if [ -z "$3" ]; then
   SCRIPT=${0##*/}
   echo
   echo "============================================================================"
-  echo "${SCRIPT}  (c) 2003-2005 by Itzchak Rehberg & IzzySoft (devel@izzysoft.de)"
+  echo "${SCRIPT}  (c) 2003-2006 by Itzchak Rehberg & IzzySoft (devel@izzysoft.de)"
   echo "----------------------------------------------------------------------------"
   echo "This script is intended to move all indexes for one schema into a different"
-  echo "TableSpace. First configure your SYS user / passwd in the 'globalconf' file,"
+  echo "TableSpace. First configure your user / passwd in the 'globalconf' file,"
   echo "then call this script using the following syntax:"
   echo "----------------------------------------------------------------------------"
   echo "Syntax: ${SCRIPT} <ORACLE_SID> <SourceTS> <TargetTS> [Options]"

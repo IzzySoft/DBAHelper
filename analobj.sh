@@ -10,11 +10,12 @@ if [ -z "$3" ]; then
   SCRIPT=${0##*/}
   echo
   echo "============================================================================"
-  echo "${SCRIPT}  (c) 2003-2004 by Itzchak Rehberg & IzzySoft (devel@izzysoft.de)"
+  echo "${SCRIPT}  (c) 2003-2006 by Itzchak Rehberg & IzzySoft (devel@izzysoft.de)"
   echo "----------------------------------------------------------------------------"
-  echo "This script is intended to analyze objects for a given schema. First"
-  echo "configure your SYS user / passwd in the 'globalconf' file, then call this"
-  echo "script using the following syntax:"
+  echo "This script is intended to analyze objects for a given schema and/or print a"
+  echo "list of tables with chained rows, where the ratio exceeds the configured"
+  echo "threshold. First configure your user / passwd in the 'globalconf' file, then"
+  echo "call this script using the following syntax:"
   echo "----------------------------------------------------------------------------"
   echo "Syntax: ${SCRIPT} <ORACLE_SID> <Schema> <ObjectType> [Options]"
   echo "  Options:"
@@ -25,7 +26,9 @@ if [ -z "$3" ]; then
   echo "     -u <username>"
   echo "     --noanalyze"
   echo "----------------------------------------------------------------------------"
-  echo "where <ObjectType> is either TABLE, INDEX or ALL."
+  echo "where <ObjectType> is either TABLE, INDEX or ALL. The '--noanalyze' option"
+  echo "you may want to specify if you think your statistics are recent enough, and"
+  echo "you just quickly want the 'chained list'."
   echo "============================================================================"
   echo
   exit 1
