@@ -10,18 +10,14 @@
 MIN_LAZY_AGE=10
 TOP_N_SESSIONS=5
 
-if [ -n "$1" ]; then
-  if [ "$1"=="-h" ]; then
-    ORACLE_SID=""
-  else
-    export ORACLE_SID=$1
-  fi
-fi
-if [ -z "$ORACLE_SID"]; then
-  SCRIPT=${0##*/}
+#=====================================================[ internal functions ]===
+SCRIPT=${0##*/}
+
+#------------------------------------------------------------[ Help Screen ]---
+function helps {
   echo
   echo "============================================================================"
-  echo "${SCRIPT}      (c) 2005 by Itzchak Rehberg & IzzySoft (devel@izzysoft.de)"
+  echo "${SCRIPT} (c) 2005-2006 by Itzchak Rehberg & IzzySoft (devel@izzysoft.de)"
   echo "----------------------------------------------------------------------------"
   echo "This script checks the database for wasted resources. It lists up the used"
   echo "and overall space for the Temp TS and PGA, the space wasted by 'lazy'"
@@ -37,11 +33,24 @@ if [ -z "$ORACLE_SID"]; then
   echo "database using SQL*Plus with OS verification ('/ as sysdba')."
   echo "============================================================================"
   echo
-  exit 1
-fi
+}
 
+#========================================================[ Start Operation ]===
+#--------------------------------------------------------[ Parameter Check ]---
+case "$1" in
+  "-h") helps
+        exit 0
+        ;;
+  "")   helps
+        exit 1
+        ;;
+  *)    export ORACLE_SID=$1
+        ;;
+esac
+
+#---------------------------------------------------------------[ Main Job ]---
 echo "################################################################################"
-echo "# Lazy Session & Wastage lister         (c) 2005 by Itzchak Rehberg & IzzySoft #"
+echo "# Lazy Session & Wastage lister    (c) 2005-2006 by Itzchak Rehberg & IzzySoft #"
 echo "################################################################################"
 sqlplus -s "/as sysdba" <<EOF
  Set TERMOUT OFF
@@ -165,3 +174,5 @@ sqlplus -s "/as sysdba" <<EOF
  END;
 /
 EOF
+
+exit 0
