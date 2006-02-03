@@ -11,16 +11,17 @@ if [ -z "$1" ]; then
   SCRIPT=${0##*/}
   echo
   echo "============================================================================"
-  echo "${SCRIPT}  (c) 2003-2005 by Itzchak Rehberg & IzzySoft (devel@izzysoft.de)"
+  echo "${SCRIPT}  (c) 2003-2006 by Itzchak Rehberg & IzzySoft (devel@izzysoft.de)"
   echo "----------------------------------------------------------------------------"
   echo "This script is intended to rebuild all indexes for a given TableSpace plus"
   echo "runs a coalesce on that TS 3 times during this process depending on the"
   echo "amount of indices/bytes processed. It starts with the smallest index to make"
   echo "use of the coalesced space for the bigger ones. First we try to rebuild"
-  echo "online -- if that fails, we try without the online option (which you may"
-  echo "want to comment out in some cases). Indices using 1 extent only are ignored."
-  echo "Please configure your SYS user / passwd in the 'globalconf' file,"
-  echo "then call this script using the following syntax:"
+  echo "online -- if that fails, we try without the online option (which by default"
+  echo "is disabled; use the --force option to override). Indices using 1 extent"
+  echo "only are ignored."
+  echo "Please configure your user / passwd in the 'globalconf' file, then call this"
+  echo "script using the following syntax:"
   echo "----------------------------------------------------------------------------"
   echo "Syntax: ${SCRIPT} <ORACLE_SID> [TS] [Options]"
   echo "  Options:"
@@ -28,12 +29,14 @@ if [ -z "$1" ]; then
   echo "     -p <Password>"
   echo "     -s <ORACLE_SID/Connection String for Target DB>"
   echo "     -u <username>"
+  echo "     --force"
   echo "============================================================================"
   echo
   exit 1
 fi
 
 # =================================================[ Configuration Section ]===
+force=0
 # Eval params
 param2=`echo $2|cut -c1-1`
 if [ "$param2" != "-" -a -n "$2" ]; then
@@ -48,7 +51,7 @@ CONFIG=$BINDIR/globalconf
 . $BINDIR/configure $* -f idxrebuild -x $suff
 
 # ====================================================[ Script starts here ]===
-version='0.1.6'
+version='0.1.7'
 $ORACLE_HOME/bin/sqlplus -s /NOLOG <<EOF
 
 CONNECT $user/$password@$ORACLE_CONNECT
@@ -96,9 +99,14 @@ BEGIN
 EXCEPTION
   WHEN OTHERS THEN
     BEGIN
-      SELECT TO_CHAR(SYSDATE,'YYYY-MM-DD HH24:MI:SS') INTO TIMESTAMP FROM DUAL;
-      dbms_output.put_line('- '||TIMESTAMP||line);
---      EXECUTE IMMEDIATE line;
+      IF ($force=1) THEN
+        SELECT TO_CHAR(SYSDATE,'YYYY-MM-DD HH24:MI:SS') INTO TIMESTAMP FROM DUAL;
+        dbms_output.put_line('- '||TIMESTAMP||line);
+        EXECUTE IMMEDIATE line;
+      ELSE
+        SELECT TO_CHAR(SYSDATE,'YYYY-MM-DD HH24:MI:SS') INTO TIMESTAMP FROM DUAL;
+        dbms_output.put_line('! '||TIMESTAMP||' Rebuild failed ('||SQLERRM||')');
+      END IF;
     EXCEPTION
       WHEN OTHERS THEN
         BEGIN
@@ -130,7 +138,7 @@ BEGIN
   VERSION := '$version'; COALA := 0;
   SELECT TO_CHAR(SYSDATE,'YYYY-MM-DD HH24:MI:SS') INTO TIMESTAMP FROM DUAL;
   IF NVL(LENGTH('$STS'),0) = 0 THEN
-    L_LINE := '* '||TIMESTAMP||' Rebuilding all indices in Instance "$ORACLE_SID":';
+    L_LINE := '* '||TIMESTAMP||' Rebuilding all indices in Instance '||CHR(34)||'$ORACLE_SID'||CHR(34)||':';
     dbms_output.put_line(L_LINE);
     FOR Rec_INDEX IN C_INDEX_ALL LOOP
       L_LINE := ' ALTER INDEX "'||Rec_INDEX.owner||'"."'||Rec_INDEX.segment_name||

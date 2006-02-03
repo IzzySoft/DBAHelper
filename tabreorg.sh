@@ -7,17 +7,18 @@
 #                                                              Itzchak Rehberg
 #
 #
-version='0.0.8'
+version='0.0.9'
 SCRIPT=${0##*/}
 INTRO="\n==============================================================================\n"
-INTRO="${INTRO}${SCRIPT} v${version}        (c) 2004-2005 by Itzchak Rehberg (devel@izzysoft.de)\n"
+INTRO="${INTRO}${SCRIPT} v${version}        (c) 2004-2006 by Itzchak Rehberg (devel@izzysoft.de)\n"
 INTRO="${INTRO}------------------------------------------------------------------------------\n"
 
 if [ -z "$1" ]; then
   printf "${INTRO}"
   echo "This script is intended to automatically reorganize all tables if the amount"
-  echo "of chained/migrated rows exceeds a given treshhold (see globalconf)."
-  echo "Call this script using the following syntax:"
+  echo "of chained/migrated rows exceeds a given treshhold (see globalconf). First,"
+  echo "configure your user / password in the 'globalconf' file, then call this"
+  echo "script using the following syntax:"
   echo ------------------------------------------------------------------------------
   echo "Syntax: ${SCRIPT} <ORACLE_SID> [Options]"
   echo "  Options:"
@@ -27,7 +28,7 @@ if [ -z "$1" ]; then
   echo "     -s <ORACLE_SID/Connection String for Target DB>"
   echo "     -t <temporary TS for reorg>"
   echo "     -u <username>"
-  echo "     --nostats (ignores the chain count percentage = force reorg)"
+  echo "     --force (ignores the chain count percentage = force reorg)"
   echo ==============================================================================
   echo
   exit 1
@@ -50,7 +51,6 @@ if [ `echo "$TR_TMP" | tr "[a-z]" "[A-Z]"` == "TEMP" ] || [ -z "$TR_TMP" ]; then
   echo "! For optimal reorganization, you should specify a permanent TS to temporarily"
   echo "! hold the tables. This can be done within the configuration file or by using"
   echo "! the -t option on the command line."
-#  exit 2
   TR_TMP=""
   ADJUST="FALSE"
   ONLINE=""

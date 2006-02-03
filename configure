@@ -3,7 +3,7 @@
 # $Id$
 #
 # =============================================================================
-# Setup configuration for tabmove.sh, idxmove.sh, idxrebuild.sh and
+# Setup configuration for tabmove.sh, idxmove.sh, idxrebuild*.sh and
 # analobj.sh
 # -----------------------------------------------------------------------------
 #                                                              Itzchak Rehberg
@@ -25,13 +25,13 @@ while [ -n "$1" ] ; do
     -t) shift; TR_TEMP=$1;;
     -o) shift; TR_OWNER=$1;;
     --noanalyze) analyze=0;;
-    --nostats) stats=0;;
+    --force)   force=1;;
   esac
   shift
 done
 . $CONFIG $ARGS
 # ignore chain count percentage for tabreorg
-if [ "$stats" == "0" ]; then
+if [ "$force" == "1" ]; then
   TR_CHAINPCT=0
   NUMROWS=0
   CHAINCNT=0

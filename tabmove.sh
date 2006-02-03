@@ -11,10 +11,10 @@ if [ -z "$3" ]; then
   SCRIPT=${0##*/}
   echo
   echo "============================================================================"
-  echo "${SCRIPT}  (c) 2003-2005 by Itzchak Rehberg & IzzySoft (devel@izzysoft.de)"
+  echo "${SCRIPT}  (c) 2003-2006 by Itzchak Rehberg & IzzySoft (devel@izzysoft.de)"
   echo "----------------------------------------------------------------------------"
   echo "This script is intended to move all tables from one tablespace into another"
-  echo "TableSpace. First configure your SYS user / passwd in the 'globalconf' file,"
+  echo "TableSpace. First configure your user / passwd in the 'globalconf' file,"
   echo "then call this script using the following syntax:"
   echo "----------------------------------------------------------------------------"
   echo "Syntax: ${SCRIPT} <ORACLE_SID> <SourceTS> <TargetTS> [Options]"
@@ -23,6 +23,13 @@ if [ -z "$3" ]; then
   echo "     -p <Password>"
   echo "     -s <ORACLE_SID/Connection String for Target DB>"
   echo "     -u <username>"
+  echo "     --force"
+  echo "----------------------------------------------------------------------------"
+  echo "The table is first tried to be moved with the ONLINE option (i.e., it is"
+  echo "still available to the users during the move process). If this, however,"
+  echo "fails, an error message is written to the log. Following this, a table move"
+  echo "without the ONLINE option is tried only if you specified the '--force'"
+  echo "command line option."
   echo "============================================================================"
   echo
   exit 1
@@ -38,7 +45,7 @@ CONFIG=$BINDIR/globalconf
 . $BINDIR/configure $* -f tabmov
 
 # ====================================================[ Script starts here ]===
-version='0.1.4'
+version='0.1.5'
 $ORACLE_HOME/bin/sqlplus -s /NOLOG <<EOF
 
 CONNECT $user/$password@$ORACLE_CONNECT
@@ -71,9 +78,11 @@ EXCEPTION
     BEGIN
       SELECT TO_CHAR(SYSDATE,'YYYY-MM-DD HH24:MI:SS') INTO TIMESTAMP FROM DUAL;
       dbms_output.put_line('- '||TIMESTAMP||SQLERRM);
-      dbms_output.put_line('+ '||TIMESTAMP||line||tts);
-      dbms_output.put_line(line||tts);
-      EXECUTE IMMEDIATE line||tts;
+      IF ($force=1) THEN
+        dbms_output.put_line('+ '||TIMESTAMP||line||tts);
+        dbms_output.put_line(line||tts);
+        EXECUTE IMMEDIATE line||tts;
+      END IF;
     EXCEPTION
       WHEN OTHERS THEN
         SELECT TO_CHAR(SYSDATE,'YYYY-MM-DD HH24:MI:SS') INTO TIMESTAMP FROM DUAL;
