@@ -36,6 +36,13 @@ if [ -z "$1" ]; then
 fi
 
 # =================================================[ Configuration Section ]===
+# Adjust initial extent size according index size:
+# small <= 256k; medium <= 5M; large <= 100M <= xxl
+INIT_SMALL="64k"
+INIT_MEDIUM="512k"
+INIT_LARGE="10M"
+INIT_XXL="100M"
+adjust=1 
 force=0
 # Eval params
 param2=`echo $2|cut -c1-1`
@@ -51,7 +58,7 @@ CONFIG=$BINDIR/globalconf
 . $BINDIR/configure $* -f idxrebuild -x $suff
 
 # ====================================================[ Script starts here ]===
-version='0.1.7'
+version='0.1.8'
 $ORACLE_HOME/bin/sqlplus -s /NOLOG <<EOF
 
 CONNECT $user/$password@$ORACLE_CONNECT
@@ -73,6 +80,7 @@ DECLARE
   NUM_ALL NUMBER; -- count of indices to process all together
   NUM_DONE NUMBER; -- count of indices already processed
   COALA NUMBER; -- how many times we did coalesce
+  ADJUST VARCHAR2(200); -- storage clause to adjust initial extent size
 
   CURSOR C_INDEX IS
     SELECT segment_name,owner,bytes
@@ -94,15 +102,15 @@ PROCEDURE moveidx (line IN VARCHAR2) IS
   TIMESTAMP VARCHAR2(20);
 BEGIN
   SELECT TO_CHAR(SYSDATE,'YYYY-MM-DD HH24:MI:SS') INTO TIMESTAMP FROM DUAL;
-  dbms_output.put_line('+ '||TIMESTAMP||line||' ONLINE');
-  EXECUTE IMMEDIATE line||' ONLINE';
+  dbms_output.put_line('+ '||TIMESTAMP||line||' ONLINE '||ADJUST);
+  EXECUTE IMMEDIATE line||' ONLINE '||ADJUST;
 EXCEPTION
   WHEN OTHERS THEN
     BEGIN
       IF ($force=1) THEN
         SELECT TO_CHAR(SYSDATE,'YYYY-MM-DD HH24:MI:SS') INTO TIMESTAMP FROM DUAL;
-        dbms_output.put_line('- '||TIMESTAMP||line);
-        EXECUTE IMMEDIATE line;
+        dbms_output.put_line('- '||TIMESTAMP||line||' '||ADJUST);
+        EXECUTE IMMEDIATE line||' '||ADJUST;
       ELSE
         SELECT TO_CHAR(SYSDATE,'YYYY-MM-DD HH24:MI:SS') INTO TIMESTAMP FROM DUAL;
         dbms_output.put_line('! '||TIMESTAMP||' Rebuild failed ('||SQLERRM||')');
@@ -134,6 +142,25 @@ EXCEPTION
   WHEN OTHERS THEN NULL;
 END;
 
+PROCEDURE adjust_clause (osize IN NUMBER) IS
+BEGIN
+  IF $adjust = 1 THEN
+    IF osize < 262144 THEN
+      ADJUST := 'STORAGE ( INITIAL $INIT_SMALL)';
+    ELSIF osize < 5242880 THEN
+      ADJUST := 'STORAGE ( INITIAL $INIT_MEDIUM)';
+    ELSIF osize < 104857600 THEN
+      ADJUST := 'STORAGE ( INITIAL $INIT_LARGE)';
+    ELSE
+      ADJUST := 'STORAGE ( INITIAL $INIT_XXL)';
+    END IF;
+  ELSE
+    ADJUST := '';
+  END IF;
+EXCEPTION
+  WHEN OTHERS THEN ADJUST := '';
+END;
+
 BEGIN
   VERSION := '$version'; COALA := 0;
   SELECT TO_CHAR(SYSDATE,'YYYY-MM-DD HH24:MI:SS') INTO TIMESTAMP FROM DUAL;
@@ -141,6 +168,7 @@ BEGIN
     L_LINE := '* '||TIMESTAMP||' Rebuilding all indices in Instance '||CHR(34)||'$ORACLE_SID'||CHR(34)||':';
     dbms_output.put_line(L_LINE);
     FOR Rec_INDEX IN C_INDEX_ALL LOOP
+      adjust_clause(Rec_INDEX.bytes);
       L_LINE := ' ALTER INDEX "'||Rec_INDEX.owner||'"."'||Rec_INDEX.segment_name||
                 '" REBUILD';
       moveidx(L_LINE);
@@ -151,6 +179,7 @@ BEGIN
     L_LINE := '* '||TIMESTAMP||' Rebuilding all indices in TS $STS:';
     dbms_output.put_line(L_LINE);
     FOR Rec_INDEX IN C_INDEX LOOP
+      adjust_clause(Rec_INDEX.bytes);
       L_LINE := ' ALTER INDEX "'||Rec_INDEX.owner||'"."'||Rec_INDEX.segment_name||
                 '" REBUILD';
       moveidx(L_LINE);

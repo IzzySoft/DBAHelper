@@ -8,6 +8,8 @@ v0.1.7
 * lazywaste.sh: some restructuring
 * updated some help messages within the scripts
 + added parameter --force to idxrebuild_all.sh, tabmove.sh and tabreorg.sh
++ idxrebuild_all.sh: Now (optionally) also adjusts size of initial extent
+  (based on index size)
 
 v0.1.6 (11.01.2006)
 -------------------
