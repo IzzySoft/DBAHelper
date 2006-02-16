@@ -9,7 +9,7 @@ v0.1.7
 * updated some help messages within the scripts
 + added parameter --force to idxrebuild_all.sh, tabmove.sh and tabreorg.sh
 + idxrebuild_all.sh: Now (optionally) also adjusts size of initial/next extent
-  (based on index size)
+  (based on index size). Use parameter --noadjust to ommit.
 ! if the scripts have been run without the -s parameter, and the given SID
   did not resolve via ONAMES/TNSNAMES, connection failed. Fixed.
 
