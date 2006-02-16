@@ -15,7 +15,7 @@ ARGS=$*
 # ------------------------------------------[ process command line options ]---
 while [ -n "$1" ] ; do
   case "$1" in
-    -s) shift; ORACLE_CONNECT=$1;;
+    -s) shift; ORACLE_CONNECT="@$1";;
     -u) shift; username=$1;;
     -p) shift; passwd=$1;;
     -c) shift; CONFIG=$1;;
@@ -24,6 +24,7 @@ while [ -n "$1" ] ; do
     -l) shift; LOGAL=$1;;
     -t) shift; TR_TEMP=$1;;
     -o) shift; TR_OWNER=$1;;
+    --noadjust) adjust=0;;
     --noanalyze) analyze=0;;
     --force)   force=1;;
   esac
@@ -36,9 +37,9 @@ if [ "$force" == "1" ]; then
   NUMROWS=0
   CHAINCNT=0
 fi
-if [ -z "$ORACLE_CONNECT" ]; then
-  ORACLE_CONNECT=$ORACLE_SID
-fi
+#if [ -z "$ORACLE_CONNECT" ]; then
+#  ORACLE_CONNECT=$ORACLE_SID
+#fi
 if [ -n "$username" ]; then
   user=$username
 fi

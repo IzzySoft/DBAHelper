@@ -48,11 +48,11 @@ CONFIG=$BINDIR/globalconf
 . $BINDIR/configure $* -f analobj
 
 # ====================================================[ Script starts here ]===
-version='0.1.4'
+version='0.1.5'
 #cat >dummy.out<<EOF
 $ORACLE_HOME/bin/sqlplus -s /NOLOG <<EOF
 
-CONNECT $user/$password@$ORACLE_CONNECT
+CONNECT $user/${password}$ORACLE_CONNECT
 Set TERMOUT ON
 Set SCAN OFF
 Set SERVEROUTPUT On Size 1000000

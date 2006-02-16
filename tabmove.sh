@@ -45,10 +45,10 @@ CONFIG=$BINDIR/globalconf
 . $BINDIR/configure $* -f tabmov
 
 # ====================================================[ Script starts here ]===
-version='0.1.5'
+version='0.1.6'
 $ORACLE_HOME/bin/sqlplus -s /NOLOG <<EOF
 
-CONNECT $user/$password@$ORACLE_CONNECT
+CONNECT $user/${password}$ORACLE_CONNECT
 Set TERMOUT ON
 Set SCAN OFF
 Set SERVEROUTPUT On Size 1000000

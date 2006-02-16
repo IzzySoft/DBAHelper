@@ -8,8 +8,10 @@ v0.1.7
 * lazywaste.sh: some restructuring
 * updated some help messages within the scripts
 + added parameter --force to idxrebuild_all.sh, tabmove.sh and tabreorg.sh
-+ idxrebuild_all.sh: Now (optionally) also adjusts size of initial extent
++ idxrebuild_all.sh: Now (optionally) also adjusts size of initial/next extent
   (based on index size)
+! if the scripts have been run without the -s parameter, and the given SID
+  did not resolve via ONAMES/TNSNAMES, connection failed. Fixed.
 
 v0.1.6 (11.01.2006)
 -------------------

@@ -30,18 +30,23 @@ if [ -z "$1" ]; then
   echo "     -s <ORACLE_SID/Connection String for Target DB>"
   echo "     -u <username>"
   echo "     --force"
+  echo "     --noadjust"
   echo "============================================================================"
   echo
   exit 1
 fi
 
 # =================================================[ Configuration Section ]===
-# Adjust initial extent size according index size:
+# Adjust initial extent size according index size (if not called w/ "--noadjust"):
 # small <= 256k; medium <= 5M; large <= 100M <= xxl
 INIT_SMALL="64k"
+NEXT_SMALL="64k"
 INIT_MEDIUM="512k"
+NEXT_MEDIUM="128k"
 INIT_LARGE="10M"
+NEXT_LARGE="1M"
 INIT_XXL="100M"
+NEXT_XXL="10M"
 adjust=1 
 force=0
 # Eval params
@@ -61,7 +66,7 @@ CONFIG=$BINDIR/globalconf
 version='0.1.8'
 $ORACLE_HOME/bin/sqlplus -s /NOLOG <<EOF
 
-CONNECT $user/$password@$ORACLE_CONNECT
+CONNECT $user/${password}$ORACLE_CONNECT
 Set TERMOUT ON
 Set SCAN OFF
 Set SERVEROUTPUT On Size 1000000
@@ -146,13 +151,13 @@ PROCEDURE adjust_clause (osize IN NUMBER) IS
 BEGIN
   IF $adjust = 1 THEN
     IF osize < 262144 THEN
-      ADJUST := 'STORAGE ( INITIAL $INIT_SMALL)';
+      ADJUST := 'STORAGE ( INITIAL $INIT_SMALL NEXT $NEXT_SMALL )';
     ELSIF osize < 5242880 THEN
-      ADJUST := 'STORAGE ( INITIAL $INIT_MEDIUM)';
+      ADJUST := 'STORAGE ( INITIAL $INIT_MEDIUM NEXT $NEXT_MEDIUM )';
     ELSIF osize < 104857600 THEN
-      ADJUST := 'STORAGE ( INITIAL $INIT_LARGE)';
+      ADJUST := 'STORAGE ( INITIAL $INIT_LARGE NEXT $NEXT_LARGE )';
     ELSE
-      ADJUST := 'STORAGE ( INITIAL $INIT_XXL)';
+      ADJUST := 'STORAGE ( INITIAL $INIT_XXL NEXT $NEXT_XXL )';
     END IF;
   ELSE
     ADJUST := '';

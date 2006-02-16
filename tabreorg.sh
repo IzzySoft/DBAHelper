@@ -7,7 +7,7 @@
 #                                                              Itzchak Rehberg
 #
 #
-version='0.0.9'
+version='0.1.0'
 SCRIPT=${0##*/}
 INTRO="\n==============================================================================\n"
 INTRO="${INTRO}${SCRIPT} v${version}        (c) 2004-2006 by Itzchak Rehberg (devel@izzysoft.de)\n"
@@ -62,7 +62,7 @@ fi
 # ====================================================[ Script starts here ]===
 $ORACLE_HOME/bin/sqlplus -s /NOLOG <<EOF
 
-CONNECT $user/$password@$ORACLE_CONNECT
+CONNECT $user/${password}$ORACLE_CONNECT
 Set TERMOUT ON
 Set SCAN OFF
 Set SERVEROUTPUT On Size 1000000
