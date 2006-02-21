@@ -32,14 +32,11 @@ while [ -n "$1" ] ; do
 done
 . $CONFIG $ARGS
 # ignore chain count percentage for tabreorg
-if [ "$force" == "1" ]; then
+if [ "$analyze" == "0" ]; then
   TR_CHAINPCT=0
   NUMROWS=0
   CHAINCNT=0
 fi
-#if [ -z "$ORACLE_CONNECT" ]; then
-#  ORACLE_CONNECT=$ORACLE_SID
-#fi
 if [ -n "$username" ]; then
   user=$username
 fi

@@ -9,7 +9,7 @@
 #
 # login information
 user=sys
-password="change_me"
+password="nis!"
 # Oracle SID
 export ORACLE_SID=$1
 # Prefix for the log file to write to. The parameters passed to the script will
@@ -42,3 +42,15 @@ TR_USEDINC=0
 TR_FREEINC=10
 # min pct of chained rows a table must have to be re-organized
 TR_CHAINPCT=7
+
+# ==============================================[ tabreorg & idxrebuild_all ]===
+# Adjust initial extent size according index size (if not called w/ "--noadjust"):
+# small <= 256k; medium <= 5M; large <= 100M <= xxl
+INIT_SMALL="64k"
+NEXT_SMALL="64k"
+INIT_MEDIUM="512k"
+NEXT_MEDIUM="128k"
+INIT_LARGE="10M"
+NEXT_LARGE="1M"
+INIT_XXL="100M"
+NEXT_XXL="10M"

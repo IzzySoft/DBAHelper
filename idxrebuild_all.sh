@@ -37,16 +37,6 @@ if [ -z "$1" ]; then
 fi
 
 # =================================================[ Configuration Section ]===
-# Adjust initial extent size according index size (if not called w/ "--noadjust"):
-# small <= 256k; medium <= 5M; large <= 100M <= xxl
-INIT_SMALL="64k"
-NEXT_SMALL="64k"
-INIT_MEDIUM="512k"
-NEXT_MEDIUM="128k"
-INIT_LARGE="10M"
-NEXT_LARGE="1M"
-INIT_XXL="100M"
-NEXT_XXL="10M"
 adjust=1 
 force=0
 # Eval params
