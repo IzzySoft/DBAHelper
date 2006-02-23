@@ -27,9 +27,8 @@ if [ -z "$1" ]; then
   echo "     -p <Password>"
   echo "     -s <ORACLE_SID/Connection String for Target DB>"
   echo "     -u <username>"
-  echo "     --noanalyze : ignores the chain count percentage = force reorg"
-  echo "     --force     : force rebuild even if MOVE ONLINE fails."
-  echo "                   You need this to reorg non-IOT tables."
+  echo "     --force     : ignores the chain count percentage = force reorg"
+  echo "     --noadjust  : do not adjust PCTFREE/PCTUSED"
   echo ==============================================================================
   echo
   exit 1
@@ -91,6 +90,7 @@ DECLARE
        AND nvl(num_rows,0) >= $NUMROWS
        AND nvl(chain_cnt,0) >= $CHAINCNT;
 
+  -- Debug output
   PROCEDURE print (line IN VARCHAR2) IS
     BEGIN
       IF $LOGALL = 1 THEN
@@ -100,6 +100,7 @@ DECLARE
       WHEN OTHERS THEN NULL;
     END;
 
+  -- Get object size as base for new storage parameters
   PROCEDURE get_bytes (OWN IN VARCHAR2, TAB IN VARCHAR2) IS
     BEGIN
       SELECT SUM(bytes) INTO OSIZE
@@ -109,6 +110,7 @@ DECLARE
       WHEN OTHERS THEN OSIZE := NULL;
     END;
 
+  -- Adjust storage parameters
   PROCEDURE adjust_clause IS
     BEGIN
       IF OSIZE IS NULL THEN
@@ -126,35 +128,23 @@ DECLARE
       WHEN OTHERS THEN ADJUST := '';
   END;
 
+  -- Do the real job
   FUNCTION movetab (OWN IN VARCHAR2, TAB IN VARCHAR2) RETURN BOOLEAN IS
     line VARCHAR2(255);
     BEGIN
       line := ' ALTER TABLE '||OWN||'.'||TAB||' MOVE ';
       SELECT TO_CHAR(SYSDATE,'YYYY-MM-DD HH24:MI:SS') INTO TIMESTAMP FROM DUAL;
-      print('+ '||TIMESTAMP||line||'ONLINE '||ADJUST);
-      EXECUTE IMMEDIATE line||'ONLINE '||ADJUST;
+      print('+ '||TIMESTAMP||line||ADJUST);
+      EXECUTE IMMEDIATE line||ADJUST;
       RETURN TRUE;
     EXCEPTION
       WHEN OTHERS THEN
-        BEGIN
-          SELECT TO_CHAR(SYSDATE,'YYYY-MM-DD HH24:MI:SS') INTO TIMESTAMP FROM DUAL;
-          IF ($force = 1) THEN
-            print('- '||TIMESTAMP||SQLERRM);
-            print('+ '||TIMESTAMP||line||ADJUST);
-            EXECUTE IMMEDIATE line||' '||ADJUST;
-            RETURN TRUE;
-          ELSE
-            dbms_output.put_line('! '||TIMESTAMP||' TABLE MOVE failed for '||OWN||'.'||TAB||' ('||SQLERRM||')');
-            RETURN FALSE;
-          END IF;
-        EXCEPTION
-          WHEN OTHERS THEN
-            SELECT TO_CHAR(SYSDATE,'YYYY-MM-DD HH24:MI:SS') INTO TIMESTAMP FROM DUAL;
-            dbms_output.put_line('! '||TIMESTAMP||' TABLE MOVE failed for '||OWN||'.'||TAB||' ('||SQLERRM||')');
-            RETURN FALSE;
-        END;
+         SELECT TO_CHAR(SYSDATE,'YYYY-MM-DD HH24:MI:SS') INTO TIMESTAMP FROM DUAL;
+         dbms_output.put_line('! '||TIMESTAMP||' TABLE MOVE failed for '||OWN||'.'||TAB||' ('||SQLERRM||')');
+         RETURN FALSE;
     END;
 
+  -- Adjust PCTFREE and PCTUSED
   PROCEDURE alttab (OWN IN VARCHAR2, TAB IN VARCHAR2, FREE IN NUMBER, USED IN NUMBER) IS
     statement VARCHAR2(255);
     newval NUMBER;
@@ -211,6 +201,7 @@ BEGIN
   END LOOP;
   SELECT TO_CHAR(SYSDATE,'YYYY-MM-DD HH24:MI:SS') INTO TIMESTAMP FROM DUAL;
   dbms_output.put_line('* '||TIMESTAMP||' TabReorg v'||VERSION||' exiting normally.');
+  dbms_output.put_line('* '||TIMESTAMP||' Remember to rebuild invalidated indices!');
 EXCEPTION
   WHEN OTHERS THEN
     SELECT TO_CHAR(SYSDATE,'YYYY-MM-DD HH24:MI:SS') INTO TIMESTAMP FROM DUAL;

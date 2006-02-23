@@ -8,8 +8,8 @@
 #                                                              Itzchak Rehberg
 #
 # login information
-user=sys
-password="nis!"
+user=""
+password=""
 # Oracle SID
 export ORACLE_SID=$1
 # Prefix for the log file to write to. The parameters passed to the script will
@@ -29,13 +29,10 @@ NUMROWS=1000
 CHAINCNT=10
 # estimate or compute statistics?
 CALCSTAT=COMPUTE
-# Log all analyze statements as well (1) or only results (0)?
+# Log all (analyze/detail) statements as well (1) or only results/progress (0)?
 LOGALL=0
 
 # ==============================================================[ tabreorg ]===
-# tablespace to temporarily store the tables for reorganization. This must
-# be a permanent (not a temporary!) tablespace!! Don't use "SYSTEM" here ;-)
-TR_TMP=TEMP
 # which value to add to PCTUSED
 TR_USEDINC=0
 # which value to add to PCTFREE
