@@ -3,7 +3,7 @@ $Id$
 History for DBAHelper
 =====================
 
-v0.1.7
+v0.1.7 (24.02.2006)
 -------------------
 * lazywaste.sh: some restructuring
 * updated some help messages within the scripts

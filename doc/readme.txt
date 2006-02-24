@@ -1,5 +1,5 @@
 # =============================================================================
-# Oracle DBA Helpers              (c) 2002-2005 by IzzySoft (devel@izzysoft.de)
+# Oracle DBA Helpers              (c) 2002-2006 by IzzySoft (devel@izzysoft.de)
 # -----------------------------------------------------------------------------
 # $Id$
 # -----------------------------------------------------------------------------
@@ -93,8 +93,8 @@ Shell script, we have to stick to Shell syntax here. Amongst other things this
 means: no blanks next to the "=" sign, or the value given will not be assigned
 to the variable.
 
-Provided that your Oracle environment is set up properly, you should no be able
-to run the scripts.
+Provided that your Oracle environment is set up properly, you should now be
+able to run the scripts.
 
 Have fun!
 Izzy.
