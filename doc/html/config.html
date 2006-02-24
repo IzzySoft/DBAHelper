@@ -35,23 +35,15 @@
            database. Although you may override these settings using the command
            line parameters "-u" and "-p", this is not recommended for the password
            on manual calls, since the entire command line can be made visible by
-           any user e.g. with the <code>ps</code> command, and thus the password
-           can be sniffed. So better specify it inside the script and protect the
-           file against unauthorized access. If you need different user/password
-           combinations, the recommendation is to use different config files,
-           which you then can specify on the command line using the "-c" switch.</td></tr>
+           any user e.g. with the <code>ps</code> command (or later on by evaluating
+           the shell history), and thus the password can be sniffed. So better
+           specify it inside the script and protect the file against unauthorized
+           access. More security can be gained by using OS verification, which is
+           now the default setting (empty user and password) -- but this may not
+           work well if you want to access remote databases. If you need different
+           user/password combinations, the recommendation is to use different config
+           files, which you then can specify on the command line using the "-c" switch.</td></tr>
    <tr><td class="td_name"><code>password</code></td></tr>
-   <tr><td class="td_name" align="center" COLSPAN="2"><code>tabreorg.sh</code> settings</td></tr>
-   <tr><td class="td_name"><code>TR_TMP</code></td>
-       <td class="text">Table reorganization requires two steps: we need to export
-           all data and import them again. (In between of these two steps, we may
-           adjust <code>PCTFREE</code> and <code>PCTUSED</code>, of course.) The
-           export is done by moving the table to another TableSpace, which is defined
-           with this variable. Since we want to store a permanent object there,
-           we cannot use the temporary tablespace here - it must be a permanent
-           tablespace. Without specifying a valid TableSpace here, the
-           <code>tabreorg.sh</code> script will not run. However, all other scripts
-           are not affected by this setting.</td></tr>
   </table>
  </td></tr>
  <tr><th class="th_sub"><a name="opt"></a>Optional Settings</th></tr>
@@ -92,11 +84,13 @@
            small enough to fit into <code>DB_FILE_MULTIBLOCK_READ_COUNT</code>
            data blocks, it is always completely loaded. So here you may specify
            the minimal required size (in table rows) for a table to be reported
-           (<code>analobj.sh</code>) or reorganized (<code>tabreorg.sh</code>).</td></tr>
+           (<code>analobj.sh</code>) or reorganized (<code>tabreorg.sh</code>).
+           Ignored if called with <code>--force</code> parameter.</td></tr>
    <tr><td class="td_name"><code>CHAINCNT</code></td>
        <td class="text">How many chained rows must a table have in order to be
            reported by <code>analobj.sh</code>. We want to save us unnecessary
-           reports, so we restrict it here.</td></tr>
+           reports, so we restrict it here. Ignored if called with <code>--force</code>
+           parameter.</td></tr>
    <tr><td class="td_name"><code>CALCSTAT</code></td>
        <td class="text">Before we can report migrated rows (or to know, what tables
            need to be re-organized), we need to build statistics, since w/o doing
@@ -108,7 +102,8 @@
            the results), set this to "1" - otherwise leave it to "0". With
            <code>LOGALL</code> enabled, the log files may get quite long - but all
            useful information is available without it. However you may need this
-           option in case of debugging.</td></tr>
+           option in case of debugging. Can be overridden by the <code>-l</code>
+           command line parameter.</td></tr>
    <tr><td class="td_name" align="center" COLSPAN="2"><code>tabreorg.sh</code> settings</td></tr>
    <tr><td class="td_name"><code>TR_USEDINC</code></td>
        <td class="text" rowspan="2">If we encounter to many migrations on a table,
@@ -126,7 +121,15 @@
            a table or not: if the tables percentage of migrated/chained rows is
            higher than <code>TR_CHAINEDPCT</code>, it will be re-organized;
            otherwise it will be skipped. Suitable values here should be 5 or
-           larger.</td></tr>
+           larger. Ignored if called with <code>--force</code> parameter.</td></tr>
+   <tr><td class="td_name" align="center" COLSPAN="2"><code>tabreorg.sh</code> and
+           <code>idxrebuild_all.sh</code> settings</td></tr>
+   <tr><td class="td_name"><code>INIT_*</code></td>
+       <td class="text" rowspan="2">Settings for the size of the initial and next
+           extents, based on the object size. The scripts consider all objects less
+           than 256k as small, between 256k and 5M medium, 5M to 100M large, and
+           bigger ones as XXL.</td></tr>
+   <tr><td class="td_name"><code>NEXT_*</code></td></tr>
   </table>
  </td></tr>
 </table>

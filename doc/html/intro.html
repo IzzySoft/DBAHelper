@@ -31,7 +31,10 @@
            report concerning chained/migrated rows</td></tr>
    <tr><td><code>idxmove.sh</code></td>
        <td>Move all indices from one tablespace to another</td></tr>
-   <tr><td><code>idxrebuild.sh</code></td>
+   <tr><td><code>idxrebuild_all.sh</code></td>
+       <td>Rebuild all indices for a given tablespace (or for the entire database)
+           and adjust storage settings for faster access and less fragmentation</td></tr>
+   <tr><td><code>idxrebuild_inv.sh</code></td>
        <td>Rebuild all invalid indices for a given tablespace (or for the
            entire database)</td></tr>
    <tr><td><code>lazywaste.sh</code></td>
@@ -40,7 +43,8 @@
        <td>Move all tables from a given tablespace into another tablespace</td></tr>
    <tr><td><code>tabreorg.sh</code></td>
        <td>Re-organize all tables where the amount of chained/migrated rows
-           exceeds a given treshhold</td></tr>
+           exceeds a given treshhold and adjusts their storage settings for
+           faster access and less fragmentation</td></tr>
   </table>
  </td></tr>
  <tr><th class="th_sub"><a name="latest"></a>Where to find the latest information/version?</th></tr>

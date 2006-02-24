@@ -53,8 +53,8 @@
         <td class="text">Override the <code>LOGALL</code> config variable. Specify
             1 (= On) or 0 (=off) as value.</td></tr>
    <tr><td class="td_name"><code>--noadjust</code></td>
-       <td class="text">Don't adjust the initial/next extent size
-           (<code>idxrebuild_all.sh</code> only).</td></tr>
+       <td class="text">Don't adjust the initial/next extent size and pctfree/pctused
+           (<code>idxrebuild_all.sh</code> and <code>tabreorg.sh</code> only).</td></tr>
    <tr><td class="td_name"><code>--noanalyze</code></td>
        <td class="text">Only print the chain stats without running an analyze before
            (<code>analobj.sh</code> only). Useful if you regularly analyze your
@@ -62,9 +62,6 @@
    <tr><td class="td_name" colspan="2" align="center"><code>tabreorg.sh</code> parameters</td></tr>
     <tr><td class="td_name"><code>-o</code></td>
         <td class="text">Only work on objects of this owner</td></tr>
-    <tr><td class="td_name"><code>-t</code></td>
-        <td class="text">Override the <code>TR_TMP</code> config variable (specifies
-            the tablespace to temporarily move tables to for export/import)</td></tr>
   </table>
  </td></tr>
  <tr><td class="text">
@@ -176,7 +173,7 @@
   gain much speed, and especially no space). This list will be ordered by the
   space consumed by each index. Then it processes this list from top to bottom.
   First it tries to <code>REBUILD ONLINE</code> and, if this fails, without the
-  online option (except you uncomment that statement in the script). At 3 times
+  online option (only if called with the <code>--force</code> parameter). At 3 times
   during this process it will <code>COALESCE</code> the tablespace (if you specified
   one):</p><ul>
   <li>50% of the index count or 1/3 of the size have been processed</li>
@@ -184,6 +181,12 @@
   <li>all indices have been processed</li></ul>
   <p>This way chances are good that the largest index may be successfully rebuild,
   even if in the beginning it looked like you did not have enough space for this.</p>
+  <p>If you did <i>not</i> specify the <code>--noadjust</code> parameter,
+  <code>idxrebuild_all</code> also adjusts the storage parameters, i.e. the initial
+  and next extent sizes, based on the size of the index. This will reduce the
+  fragmentation of the storage, and should also result in better performance. The
+  values are stored in the <code>globalconf</code> configuration file, so please
+  see <a href="config.html#opt">there</a> for details.</p>
   <p>The syntax of this script (and the logfile format) is the same as for
   <code>idxrebuild_inv.sh</code> above.</p>
  </td></tr>
@@ -232,21 +235,16 @@
   this can become a performance issue. To automatically remove this fragmentation,
   I wrote the <code>tabreorg.sh</code> script. In order to get rid of the
   fragmentation plus help to prevent it in the future, it takes the following
-  steps:<ol>
+  steps:</p><ol>
    <li>Checking for tables where the fragmentation exceeds a given treshhold</li>
-   <li>temporary moving the table to another tablespace, using the <code>ALTER
-       TABLE..MOVE</code> command, as described for
-       <a href="#tabmove"><code>tabmove.sh</code></a></li>
-   <li>Adjusting <code>PCTFREE</code> and <code>PCTUSED</code> as specified in
-       the configuration file</li>
-   <li>Moving the table back into its original tablespace</li>
-  </ol>We have to move the table as described, as we can only get rid of the
-  fragmentation by exporting and re-importing the entire table. We adjust the
-  values for <code>PCTFREE</code> and <code>PCTUSED</code> <b><i>before</i></b>
-  we transfer the table back to its original place, so these new values will
-  have effect on all table rows (not only on the new ones).</p>
-  <p>The only required parameter for <code>tabreorg.sh</code> (provided you set
-  up the <code>TR_TMP</code> variable in the <code>globalconf</code> correctly)
+   <li>Adjusting <code>PCTFREE</code> and <code>PCTUSED</code> as well as the
+       <code>STORAGE</code> (i.e. initial and next extent sizes) as specified in
+       the configuration file (id you did not specify the <code>--noadjust</code>
+       parameter, of course)</li>
+   <li>Call the <code>ALTER TABLE..MOVE</code> command with the evaluated
+       parameters</li>
+  </ol>
+  <p>The only required parameter for <code>tabreorg.sh</code> 
   is the <code>ORACLE_SID</code> - more optional command line parameters can be
   found in the <a href="#cmdline">command line</a> section of this document.</p>
  </td></tr>
