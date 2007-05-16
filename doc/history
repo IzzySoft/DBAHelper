@@ -3,6 +3,14 @@ $Id$
 History for DBAHelper
 =====================
 
+v0.1.8
+-------------------
+! fixed duplicate execution of CREATE USER statements
+! fixed execution order: Don't change password for SYSTEM and then try to
+  connect with the old password later
+! for system managed tablespaces, last datafile was added twice - fixed.
+
+
 v0.1.7 (24.02.2006)
 -------------------
 * lazywaste.sh: some restructuring

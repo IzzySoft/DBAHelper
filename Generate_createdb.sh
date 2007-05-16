@@ -141,12 +141,17 @@ Rem		   "identified by values" feature), same applies to the ALTER USER for the
 Rem                admin accounts (SYS and SYSTEM)
 Rem              - moved the bootstrapping stuff to the end of the createDB script, since catproc
 Rem                stops the SPOOLing (and thus the created log stops after it)
-
+Rem		08-05-2007 A I Rehberg
+Rem		 - fixed duplicate execution of CREATE USER statements
+Rem		 - fixed execution order: Don't change password for SYSTEM
+Rem		   and then try to connect with the old password later
+Rem		 - for system managed tablespaces, last datafile was added
+Rem		   twice - fixed.
 
 Set TERMOUT OFF
 Set SERVEROUTPUT On Size 1000000
 Set LINESIZE 300
-Set TRIMSPOOL On 
+Set TRIMSPOOL On
 Set FEEDBACK OFF
 Set Echo Off
 Spool ${DBSPOOL}.sql
@@ -341,7 +346,7 @@ Begin
 			 ;
 	  print(L_LINE);
         End Loop;
-
+	print('/'||Chr(10));
 
 	--
 	-- Create all other tablespaces ...
@@ -366,6 +371,7 @@ Begin
 	    End If;
 	    print(L_LINE);
 	  End Loop;
+	  L_LINE := '';
 
 	  For Rec_TS_Info In 
 		C_Tablespace_Info( Rec_Tablespaces.TABLESPACE_NAME ) Loop
@@ -388,15 +394,15 @@ Begin
 			Chr(10)||'    Pctincrease '||
 			     To_Char(NVL(Rec_TS_Info.PCT_INCREASE,0))||
 			Chr(10)||
-			'                )'
+			'                )||Chr(10)'
 			;
 	    end if;
-	    L_LINE := L_LINE||Chr(10)||' '||
+	    L_LINE := L_LINE||' '||
 	              'Extent Management '||Rec_TS_Info.EXTENT_MANAGEMENT||chr(10);
 	    L_LINE := L_LINE||' '||Rec_TS_Info.LOGGING||Chr(10);
 	    L_LINE := L_LINE||' Minimum Extent '||Rec_TS_Info.MIN_EXTLEN;
 	    L_LINE := L_LINE||Chr(10)||' '||
-			Rec_TS_Info.CONTENTS||Chr(10)||'/'||Chr(10)||Chr(10);
+			Rec_TS_Info.CONTENTS||Chr(10)||'/'||Chr(10);
 	    print(L_LINE);
 	  End Loop;
 	
@@ -464,30 +470,6 @@ Begin
 	End Loop;
 
 	--
-	-- Get the data for the Admins
-	--
-	FirstTime := TRUE;
-	For Rec_AdminData In C_Admin_Info Loop
-
-	  If FirstTime Then
-	     FirstTime := FALSE;
-	     L_LINE := '';
-	  Else
-	     L_LINE := L_LINE||Chr(10);
- 	  End If;
-
-	  L_LINE := L_LINE||
-	    'Alter User '||Rec_AdminData.USERNAME||Chr(10)||L4
-	    ||'Identified By Values '''||Rec_AdminData.PASSWORD||''''||Chr(10)||L4
-	    ||'Default Tablespace '||Rec_AdminData.DEFAULT_TABLESPACE||Chr(10)||L4
-	    ||'Temporary Tablespace '||Rec_AdminData.TEMPORARY_TABLESPACE||';'
-	    ||Chr(10)||'/'||Chr(10);
-	End Loop;
-	
-	L_LINE := L_LINE||Chr(10);
-	print(L_LINE);
-
-	--
 	-- The bootstrapping stuff ... 
 	--
 	L_LINE := '/'||Chr(10)||Chr(10)||
@@ -524,6 +506,30 @@ Begin
                     'Alter Database Open;'||Chr(10);
 	  print(L_LINE);
 	End If;
+
+	--
+	-- Get the data for the Admins
+	--
+	FirstTime := TRUE;
+	For Rec_AdminData In C_Admin_Info Loop
+
+	  If FirstTime Then
+	     FirstTime := FALSE;
+	     L_LINE := '';
+	  Else
+	     L_LINE := L_LINE||Chr(10);
+ 	  End If;
+
+	  L_LINE := L_LINE||
+	    'Alter User '||Rec_AdminData.USERNAME||Chr(10)||L4
+	    ||'Identified By Values '''||Rec_AdminData.PASSWORD||''''||Chr(10)||L4
+	    ||'Default Tablespace '||Rec_AdminData.DEFAULT_TABLESPACE||Chr(10)||L4
+	    ||'Temporary Tablespace '||Rec_AdminData.TEMPORARY_TABLESPACE||';'
+	    ||Chr(10)||'/'||Chr(10);
+	End Loop;
+	
+	L_LINE := L_LINE||Chr(10);
+	print(L_LINE);
 
         --
         -- Finish System File. User Info will go to separate file
@@ -578,7 +584,7 @@ Begin
 	    ||'Default Tablespace '||Rec_UserData.DEFAULT_TABLESPACE||Chr(10)||L4
 	    ||'Temporary Tablespace '||Rec_UserData.TEMPORARY_TABLESPACE||Chr(10)||L4
 	    ||'Profile '||Rec_UserData.PROFILE
-	    ||';'||Chr(10)||'/'||Chr(10);
+	    ||';'||Chr(10);
 	  print(L_LINE);
 	End Loop;
 	
@@ -592,8 +598,7 @@ Begin
 	  L_LINE := L_LINE||Rec_Quota.TABLESPACE_NAME||';';
 	  print(L_LINE);
 	End Loop;
-	L_LINE := '/'||Chr(10)||Chr(10);
-	print(L_LINE);
+	print(Chr(10));
 
 	L_LINE := 'Spool Off'||Chr(10);
 
