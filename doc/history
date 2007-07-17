@@ -3,13 +3,15 @@ $Id$
 History for DBAHelper
 =====================
 
-v0.1.8
+v0.1.8 (17.07.2007)
 -------------------
-! fixed duplicate execution of CREATE USER statements
-! fixed execution order: Don't change password for SYSTEM and then try to
-  connect with the old password later
-! for system managed tablespaces, last datafile was added twice - fixed.
-
+! Generate_createdb.sh: fixed duplicate execution of CREATE USER statements
+! Generate_createdb.sh: fixed execution order: Don't change password for SYSTEM
+  and then try to connect with the old password later
+! Generate_createdb.sh: for system managed tablespaces, last datafile was added
+  twice - fixed.
++ added RMAN scripts (no documentation yet - simply run rman.sh w/o args to
+  find out more)
 
 v0.1.7 (24.02.2006)
 -------------------
