@@ -7,10 +7,11 @@
 
 #===============================================[ Setup Script environment ]===
 #---------------------------------------------------------------[ Settings ]---
-LOGDIR=/opt/oradata/a01/${ORACLE_SID}/dump/log
+LOGDIR=/opt/oradata/a01/${ORACLE_SID}/dump/log          # Logfiles will go here
 TEMPTSLOC=/opt/oradata/a01/${ORACLE_SID}/dbf/temp01.dbf # Datafile for Temp TS
 TEMPTSSIZE="512 M"                                      # Size of Temp TS
 
+# Don't change below this line - except if you really know what you're doing!
 BINDIR=${0%/*}
 TMPFILE=/tmp/rman.$$
 
