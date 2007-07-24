@@ -3,6 +3,11 @@ $Id$
 History for DBAHelper
 =====================
 
+v0.1.9
+-------------------
++ rman.sh: added recover command
+* rman.sh: colors now only used when TERM variable set (avoid errors w/ cron)
+
 v0.1.8 (17.07.2007)
 -------------------
 ! Generate_createdb.sh: fixed duplicate execution of CREATE USER statements
