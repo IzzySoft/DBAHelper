@@ -6,20 +6,22 @@
 # $Id$
 
 #===============================================[ Setup Script environment ]===
-#---------------------------------------------------------------[ Settings ]---
-LOGDIR=/opt/oradata/a01/${ORACLE_SID}/dump/log          # Logfiles will go here
-TEMPTSLOC=/opt/oradata/a01/${ORACLE_SID}/dbf/temp01.dbf # Datafile for Temp TS
-TEMPTSSIZE="512 M"                                      # Size of Temp TS
+if [ -z "${TERM}" ]; then				# Running via Cron job
+  [ -f ~/.bashrc ] && . ~/.bashrc			# Get Oracle environment
+fi
 
-# Don't change below this line - except if you really know what you're doing!
+#---------------------------------------------------------------[ Settings ]---
 BINDIR=${0%/*}
+LOGDIR=/local/database/a01/${ORACLE_SID}/dump/log
 TMPFILE=/tmp/rman.$$
 
 #-----------------------------------------------------------------[ Colors ]---
-red='\e[0;31m'
-blue='\e[0;34m'
-blink='\E[5m'
-NC='\e[0m'              # No Color
+if [ -n "${TERM}" ]; then
+  red='\e[0;31m'
+  blue='\e[0;34m'
+  blink='\E[5m'
+  NC='\e[0m'              # No Color
+fi
 
 #-----------------------------------------------------------[ Display help ]---
 function help {
@@ -37,6 +39,7 @@ function help {
   echo "     backup_daily       Run the daily backup"
   echo "     validate           Validate (online) database files"
   echo "     crosscheck         Validates backup availability and integrity"
+  echo "     recover		Fast Recover database (if possible)"
   echo "     restore_full       Restore the complete DB from backup"
   echo "     restore_ts         Restore a single tablespace from backup"
   echo "     restore_temp       Restore (Re-Create) the TEMP tablespace"
@@ -63,7 +66,7 @@ function yesno {
 
 function stayorgo {
   [ "$res" != "y" ] && {
-    echo "* Restore canceled."
+    echo -e "${blue}* Restore canceled.$NC"
     exit 0
   }
   echo
@@ -112,6 +115,25 @@ cat $CONFIG > $TMPFILE
 case "$CMD" in
   backup_daily|validate|crosscheck)
     header
+    ${RMANCONN} < $TMPFILE | tee -a $LOGFILE
+    ;;
+  recover)
+    header
+    echo -e "${blue}* Test whether a fast recovery is possible:$NC"
+    ${RMANCONN} < $TMPFILE | tee -a $LOGFILE
+    echo -e "${blue}Please check above output for errors. A line like$NC"
+    echo "  ORA-01124: cannot recover data file 1 - file is in use or recovery"
+    echo -e "${blue}means the database is still up and running, and you rather should check"
+    echo -e "the alert log for what is broken and e.g. recover that tablespace"
+    echo -e "explicitly with \"${0##*/} recover_ts\". Don't continue in this case;"
+    echo -e "it would fail either."
+    echo -en "Continue with the recovery (y/n)?$NC "
+    yesno
+    stayorgo
+    echo -e "${blue}OK, so we go to do a 'Fast Recovery' now, stand by...$NC"
+    cat $CONFIG >$TMPFILE
+    cat $BINDIR/rman.${CMD}_doit >>$TMPFILE
+    echo -e "${red}${blink}Running the recover process - don't interrupt now!$NC"
     ${RMANCONN} < $TMPFILE | tee -a $LOGFILE
     ;;
   restore_full)
@@ -166,7 +188,7 @@ case "$CMD" in
     echo -e "${blue}Recreating temporary tablespace, stand by...$NC"
     echo "ALTER DATABASE DEFAULT TEMPORARY TABLESPACE system;">$TMPFILE
     echo "DROP TABLESPACE temp;">>$TMPFILE
-    echo "CREATE TEMPORARY TABLESPACE temp TEMPFILE '${TEMPTSLOC}' REUSE SIZE ${TEMPTSSIZE} AUTOEXTEND OFF;">>$TMPFILE
+    echo "CREATE TEMPORARY TABLESPACE temp TEMPFILE '/local/database/a01/${ORACLE_SID}/dbf/temp01.dbf' REUSE SIZE 512 M AUTOEXTEND OFF;">>$TMPFILE
     echo "ALTER DATABASE DEFAULT TEMPORARY TABLESPACE TEMP;">$TMPFILE
     echo "exit">>$TMPFILE
     sqlplus / as sysdba <$TMPFILE
