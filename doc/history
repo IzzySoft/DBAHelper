@@ -7,6 +7,7 @@ v0.1.9
 -------------------
 + rman.sh: added recover command
 * rman.sh: colors now only used when TERM variable set (avoid errors w/ cron)
++ rman.sh: added block_recover command
 
 v0.1.8 (17.07.2007)
 -------------------

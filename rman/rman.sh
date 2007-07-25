@@ -37,6 +37,7 @@ function help {
   echo "Syntax: ${SCRIPT} <Command> [Options]"
   echo "  Commands:"
   echo "     backup_daily       Run the daily backup"
+  echo "     block_recover      Recover corrupt block in datafile"
   echo "     validate           Validate (online) database files"
   echo "     crosscheck         Validates backup availability and integrity"
   echo "     recover		Fast Recover database (if possible)"
@@ -80,6 +81,23 @@ function header {
   echo Running $CMD
 }
 
+function readnr {
+  echo -en "  ${blue}$1:$NC "
+  read nr
+  [ -z "$nr" ] && {
+    echo -en "  ${blue}You didn't enter anything. Do you want to abort (y/n)?$NC "
+    yesno
+    if [ "$res" != "y" ]; then res=y; else res=n; fi
+    stayorgo
+    readnr "$1"
+  }
+  testnr=`echo $nr | sed 's/[0-9]//g'`
+  [ -n "$testnr" ] && {
+    echo -e "  ${blue}Only digits are allowed here!$NC"
+    readnr "$1"
+  }
+}
+
 #=============================================================[ Do the job ]===
 #-------------------------------------------[ process command line options ]---
 CMD=$1
@@ -115,6 +133,23 @@ cat $CONFIG > $TMPFILE
 case "$CMD" in
   backup_daily|validate|crosscheck)
     header
+    ${RMANCONN} < $TMPFILE | tee -a $LOGFILE
+    ;;
+  block_recover)
+    header
+    echo -e "${blue}* You asked for a block recovery. Please provide the required data"
+    echo -e "  (you probably find them either in the application which alerted you about"
+    echo -e "  the problem, or at least in the alert log. Look out for a message like$NC"
+    echo "    ORA-1578: ORACLE data block corrupted (file # 6, block # 1234)"
+    readnr "Please enter the file #"
+    fileno=$nr
+    readnr "Please enter the block #"
+    blockno=$nr
+    echo -en "  ${blue}Going to recover block # $blockno for file # $fileno. Continue (y/n)?$NC "
+    yesno
+    stayorgo
+    cat $CONFIG > $TMPFILE
+    echo "BLOCKRECOVER DATAFILE $fileno BLOCK $blockno;" >> $TMPFILE
     ${RMANCONN} < $TMPFILE | tee -a $LOGFILE
     ;;
   recover)
