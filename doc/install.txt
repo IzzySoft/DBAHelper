@@ -32,6 +32,7 @@ the top of the Makefile. Usually, these are:
 prefix=/usr/local		Path for the executables is derived from this
 datarootdir=$(prefix)/share	Path for webapps and documentation uses this
 sysconfdir=/etc			Path for configuration files
+WEBROOT=/var/www		Just for webapps: Where to create a link
 
 You may as well check the other settings, but these three are the most
 important for you. You could also override these on the command line, e.g.
