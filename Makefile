@@ -19,6 +19,7 @@ install: installdirs
 	$(INSTALL_DATA) -c -p doc/history $(docdir)
 	$(INSTALL_DATA) -c -p doc/LICENSE $(docdir)
 	$(INSTALL_DATA) -c -p doc/readme.txt $(docdir)
+	$(INSTALL_DATA) -c -p doc/install.txt $(docdir)
 
 installdirs:
 	mkdir -p $(docdir)/html
