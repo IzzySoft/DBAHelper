@@ -261,6 +261,113 @@
   line, and the script didn't crash for some reason, you should be able to tell
   the result by the intended action ;)
  </td></tr>
+
+<tr><td colspan="2"><hr></td></tr>
+
+ <tr><th class="th_sub"><a name="rman"></a>rman.sh</th></tr>
+ <tr><td class="text">
+  <p>The <code>rman.sh</code> is a stand-alone toolkit just distributed along
+     with the DBAHelper archive. It does not depend on other components of this
+     distribution, and thus also doesn't make use of other settings than made in
+     its own directory. Its intention is to encourage you to use RMAN - which
+     sometimes frightens people because they <i>think</i> it's difficult to use.
+     Hereby we prove this is not the case.
+  </p><p>
+     The provided script lets you make backups, validate and crosscheck them,
+     cleanup obsolete, expired and even orphaned ones - and more. It's syntax
+     is quite easy:</p>
+     <div align="center"><div class="code" style="width:18em">
+       ./rman.sh &lt;command&gt; [options]
+     </div></div><p>
+     So far, the following commands are available:</p>
+ </td></tr>
+ <tr><td class="text">
+  <table align="center" width="95%">
+   <tr><th class="th_sub2">Parameter</th><th class="th_sub2">Description</th></tr>
+   <tr><td class="td_name" colspan="2" align="center">Commands</td></tr>
+   <tr><td class="td_name"><code>backup_daily</code></td>
+       <td class="text">Runs a daily backup of your database, according to the
+           policies you configured or took as granted. In the latter case this
+	   means to make a full backup, and then cumulative backups every day.
+	   When the retention limit (default: 7 days) is reached, the full
+	   backup gets merged with the following incremental backup, so it always
+	   reflects the point of 7 days ago - and you can recover to any point
+	   in time during the last 7 days.</td></tr>
+   <tr><td class="td_name"><code>block_recover</code></td>
+       <td class="text">Recover corrupt database blocks. You may need this when
+           Oracle tells you about such, i.e. when you get an <code>ORA-1578
+	   ORACLE data block corrupted</code>. The script will ask you to provide
+	   details the ORA-1578 provided.</td></tr>
+   <tr><td class="td_name"><code>cleanup_expired</code></td>
+       <td class="text">Expired files are those which do not exist anymore on
+           disk, but are still listed in the catalog resp. control file. If the
+	   reason is not a temporary unavailable drive, but a permanent deletion
+	   of no-longer-needed files (tsk, you should use <code>cleanup_obsolete</code>
+	   for that!), you may want to remove this obsolete information from the
+	   records.</td></tr>
+   <tr><td class="td_name"><code>cleanup_obsolete</code></td>
+       <td class="text">This will cleanup all files exceeding your configured
+           retention policy. Except for some cases, where Oracle bugs are affected...
+	   The script will list the files it is about to delete (outaged ones),
+	   and ask for your confirmation.</td></tr>
+   <tr><td class="td_name"><code>crosscheck</code></td>
+       <td class="text">Crosscheck files means to check the records in the catalog
+           resp. control file whether those files really exist physically. Those no
+	   longer existing will be marked 'expired'. Take care that all your drives
+	   are available when running this.</td></tr>
+   <tr><td class="td_name"><code>force_clean</code></td>
+       <td class="text">This does a thoroughly check for those orphans and obsolete
+           files oracle forgot about. Use this carefully - and read more about it
+	   in the <code>doc/readme.rman</code> file before using this command.</td></tr>
+   <tr><td class="td_name"><code>recover</code></td>
+       <td class="text">Wow, it crashed. What now? Recover, of course. This command
+           tries to recover the database without restoring a backup. If it fails, continue
+	   with one of the restore commands.</td></tr>
+   <tr><td class="td_name"><code>restore_full</code></td>
+       <td class="text">Run a complete restore for all of the database files. This is
+           the last resort if nothing else works, and will shutdown your database
+	   instance first. Then it restores all files from backup and runs a recover.</td></tr>
+   <tr><td class="td_name"><code>restore_ts</code></td>
+       <td class="text">Restore a tablespace. If only one or a few tablespace(s)
+           are broken (and the <code>SYSTEM</code> tablespace does not belong to
+	   that list), you can leave the database up and running and only restore
+	   what's needed. It will ask you for some details.</td></tr>
+   <tr><td class="td_name"><code>restore_temp</code></td>
+       <td class="text">Maybe misleading, since it never was backed up: But yes,
+           if your temporary tablespace got lost, we can recover from that too.</td></tr>
+   <tr><td class="td_name"><code>validate</code></td>
+       <td class="text">Nice to know you have a backup. But better to check if it's
+           not broken, right? So you can use this command to validate your backups.</td></tr>
+   <tr><td class="td_name" colspan="2" align="center">Options</td></tr>
+   <tr><td class="td_name"><code>-c &lt;configfile&gt;</code></td>
+       <td class="text">alternative configuration file to use. You may create
+           different configurations according to e.g. special cases (e.g. for
+           different database instances), and use them specifying the corresponding
+           config file at the command line.</td></tr>
+   <tr><td class="td_name"><code>-l &lt;logfile&gt;</code></td>
+       <td class="text">Use an alternative logfile. To configure the logging
+           directory, see inside the script itself for now.</td></tr>
+   <tr><td class="td_name"><code>-p &lt;password&gt;</code></td>
+       <td class="text">Password to use to connect to the target database.</td></tr>
+   <tr><td class="td_name"><code>-r &lt;catalog specification&gt;</code></td>
+       <td class="text">complete connection description for the recovery catalog
+           to use (if any). This includes username, password and connection (if needed),
+	   e.g. <code>user/pass@remote</code>.</td></tr>
+   <tr><td class="td_name"><code>-u &lt;username&gt;</code></td>
+       <td class="text">User to connect to the target database</td></tr>
+   <tr><td class="td_name"><code>--force-configure</code></td>
+       <td class="text">By default, <code>rman.sh</code> runs the <code>rman.conf</code>
+           the first time you called it - and afterwards touches a reference file,
+	   <code>~/.rman_configured</code>. On consecutive executions, it compares
+	   the timestamp and only runs <code>rman.conf</code> again if it is newer
+	   than the reference file. With this parameter you can enforce a config run.</td></tr>
+   <tr><td class="td_name"><code>--yestoall</code></td>
+       <td class="text">Assume 'Yes' as answer to all questions. This is targeted
+           for use in cron jobs once you tested what the command to execute does.
+	   Normally, the script asks for your confirmation before deleting/purging
+	   anything - these questions are suppressed by this option, so use with care.</td></tr>
+  </table>
+ </td></tr>
 </table>
 
 </body>

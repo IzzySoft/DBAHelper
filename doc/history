@@ -20,6 +20,7 @@ v0.1.9
   anymore. If you don't have this problem, you don't need this command.
 + rman.sh: added --yestoall option to allow unattended runs. Use this with care
   and only if you know what you are doing ;)
++ added documentation for the rman.sh script
 
 v0.1.8 (17.07.2007)
 -------------------
