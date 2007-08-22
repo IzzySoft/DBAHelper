@@ -18,6 +18,8 @@ v0.1.9
   result that the FRA size will be exceeded, further backups fail due to this,
   and the database comes to a stand-still since redo logs cannot be archived
   anymore. If you don't have this problem, you don't need this command.
++ rman.sh: added --yestoall option to allow unattended runs. Use this with care
+  and only if you know what you are doing ;)
 
 v0.1.8 (17.07.2007)
 -------------------

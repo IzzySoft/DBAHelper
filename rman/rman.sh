@@ -15,6 +15,7 @@ BINDIR=${0%/*}
 LOGDIR=/local/database/a01/${ORACLE_SID}/dump/log
 TMPFILE=/tmp/rman.$$
 CONFIGUREOPTS=
+YESTOALL=0
 
 #-----------------------------------------------------------------[ Colors ]---
 if [ -n "${TERM}" ]; then
@@ -55,6 +56,8 @@ function help {
   echo "     -p <Password>"
   echo "     -r <ORACLE_SID/Connection String for Catalog DB (Repository)>"
   echo "     -u <username>"
+  echo "     --force-configure	Force the configure script to run"
+  echo -e "     --yestoall		Assume 'yes' to all questions. ${red}Use with care!$NC"
   echo "  Example: Do the daily backup, using the config file /etc/dummy.conf:"
   echo "    ${SCRIPT} backup_daily -c /etc/dummy.conf"
   echo "  Example: Restore local DB using catalog:"
@@ -68,9 +71,13 @@ function help {
 #=======================================================[ Helper functions ]===
 #------------------[ Read one char user input and convert it to lower case ]---
 function yesno {
-  read -n 1 -p "" ready
-  echo
-  res=`echo $ready|tr [:upper:] [:lower:]`
+  if [ $YESTOALL -gt 0 ]; then
+    res='y'
+  else
+    read -n 1 -p "" ready
+    echo
+    res=`echo $ready|tr [:upper:] [:lower:]`
+  fi
 }
 
 #----------------------------------[ Quit if user not entered y|Y at yesno ]---
@@ -141,6 +148,7 @@ while [ "$1" != "" ] ; do
     -c) shift; CONFIG=$1;;
     -l) shift; LOGFILE=$1;;
     --force-configure) CONFIGUREOPTS=force;;
+    --yestoall) YESTOALL=1;;
   esac
   shift
 done
