@@ -6,7 +6,7 @@
 # $Id$
 
 #===============================================[ Setup Script environment ]===
-if [ -z "${TERM}" ]; then				# Running via Cron job
+if [ -z "${ORACLE_HOME}" ]; then			# Running via Cron job
   [ -f ~/.bashrc ] && . ~/.bashrc			# Get Oracle environment
 fi
 
@@ -14,6 +14,7 @@ fi
 BINDIR=${0%/*}
 LOGDIR=/local/database/a01/${ORACLE_SID}/dump/log
 TMPFILE=/tmp/rman.$$
+CONFIGUREOPTS=
 
 #-----------------------------------------------------------------[ Colors ]---
 if [ -n "${TERM}" ]; then
@@ -27,9 +28,9 @@ fi
 function help {
   SCRIPT=${0##*/}
   echo
-  echo ============================================================================
-  echo "RMAN wrapper                (c) 2007 by Itzchak Rehberg (devel@izzysoft.de)"
-  echo ----------------------------------------------------------------------------
+  echo "============================================================================"
+  echo "RMAN wrapper                 (c) 2007 by Itzchak Rehberg (devel@izzysoft.de)"
+  echo "----------------------------------------------------------------------------"
   echo This script is intended to generate a HTML report for the Oracle StatsPack
   echo collected statistics. Look inside the script header for closer details, and
   echo check for the configuration there as well.
@@ -38,12 +39,16 @@ function help {
   echo "  Commands:"
   echo "     backup_daily       Run the daily backup"
   echo "     block_recover      Recover corrupt block in datafile"
-  echo "     validate           Validate (online) database files"
+  echo "     cleanup_expired	Cleanup non existing files from catalog/controlfile"
+  echo "     cleanup_obsolete	Cleanup outdated files from disk and"
+  echo "			catalog/controlfile"
   echo "     crosscheck         Validates backup availability and integrity"
+  echo -e "     force_clean	Clean pseudo-orphans. ${red}USE WITH CARE! *$NC"
   echo "     recover		Fast Recover database (if possible)"
   echo "     restore_full       Restore the complete DB from backup"
   echo "     restore_ts         Restore a single tablespace from backup"
   echo "     restore_temp       Restore (Re-Create) the TEMP tablespace"
+  echo "     validate           Validate (online) database files"
   echo "  Options:"
   echo "     -c <alternate ConfigFile>"
   echo "     -l <Log File Name>"
@@ -54,10 +59,13 @@ function help {
   echo "    ${SCRIPT} backup_daily -c /etc/dummy.conf"
   echo "  Example: Restore local DB using catalog:"
   echo "    ${SCRIPT} restore_full -r catman/catpass@catdb"
+  echo
+  echo -e "${red}*$NC Work around some Oracle bugs. See documentation for details."
   echo ============================================================================
   echo
 }
 
+#=======================================================[ Helper functions ]===
 #------------------[ Read one char user input and convert it to lower case ]---
 function yesno {
   read -n 1 -p "" ready
@@ -65,14 +73,22 @@ function yesno {
   res=`echo $ready|tr [:upper:] [:lower:]`
 }
 
+#----------------------------------[ Quit if user not entered y|Y at yesno ]---
 function stayorgo {
   [ "$res" != "y" ] && {
-    echo -e "${blue}* Restore canceled.$NC"
+    echo -e "${blue}* Process canceled.$NC"
     exit 0
   }
   echo
 }
 
+#---------------------------------------[ Normal exit after completed work ]---
+function finito {
+  echo -e "${blue}Task completed.$NC"
+  exit 0
+}
+
+#------------------------------------------[ Display introductional header ]---
 function header {
   clear
   echo -e "${blue}RMAN Wrapper Script"
@@ -81,6 +97,7 @@ function header {
   echo Running $CMD
 }
 
+#--------------------------[ Read user input and make sure it is numerical ]---
 function readnr {
   echo -en "  ${blue}$1:$NC "
   read nr
@@ -98,6 +115,21 @@ function readnr {
   }
 }
 
+#-------------------------------[ Run RMAN configure script only if needed ]---
+function runconfig {
+  local CONFIGURED=0
+  [ "$1" != "force" ] &&
+    [ -f ~/.rman_configured ] && {
+      [ ~/.rman_configured -nt $CONFIG ] && CONFIGURED=1
+    }
+  [ $CONFIGURED -eq 0 ] && {
+    echo -e "${blue}The configuration file has been changed (or never run before), so we may"
+    echo -e "need to configure the RMAN settings. Running the configuration commands now:$NC"
+    ${RMANCONN} < $CONFIG | tee -a $LOGFILE
+    touch ~/.rman_configured
+  }
+}
+
 #=============================================================[ Do the job ]===
 #-------------------------------------------[ process command line options ]---
 CMD=$1
@@ -108,6 +140,7 @@ while [ "$1" != "" ] ; do
     -p) shift; passwd=$1;;
     -c) shift; CONFIG=$1;;
     -l) shift; LOGFILE=$1;;
+    --force-configure) CONFIGUREOPTS=force;;
   esac
   shift
 done
@@ -123,17 +156,59 @@ else
   RMANCONN="rman target $username/$passwd catalog ${CATALOG}"
 fi
 
-cat $CONFIG > $TMPFILE
 [ -f $BINDIR/rman.$CMD ] && {
-  cat $BINDIR/rman.$CMD >>$TMPFILE
+  cat $BINDIR/rman.$CMD >$TMPFILE
   echo exit >>$TMPFILE
 }
+
+#--------------------------------------[ Check if configuration has to run ]---
+runconfig $CONFIGOPTS
 
 #==============================================================[ Say Hello ]===
 case "$CMD" in
   backup_daily|validate|crosscheck)
     header
     ${RMANCONN} < $TMPFILE | tee -a $LOGFILE
+    ;;
+  cleanup_expired)
+    header
+    ${RMANCONN} < $TMPFILE | tee -a $LOGFILE
+    echo -e "${blue}The long list on top shows the process of crosschecking. At the end of the"
+    echo -e "crosscheck, tables are displayed listing the expired objects, i.e. those are no"
+    echo -e "longer available on the disks, but still in the catalog/controlfile. To keep the"
+    echo -e "records small (especially when you are not using a catalog DB but the control files"
+    echo -e "to record your backups), we can purge them from the catalog/controlfile. Since they"
+    echo -e "do not exist anymore, those records are useless."
+    echo -en "Do you want to purge those records now (y/n)? $NC"
+    yesno
+    if [ "$res" = "y" ]; then
+      echo -e "${blue}Purging catalog/controlfile:$NC"
+      cat $BINDIR/rman.${CMD}_doit > $TMPFILE
+      echo exit >> $TMPFILE
+      ${RMANCONN} < $TMPFILE | tee -a $LOGFILE
+    else
+      echo -e "${blue}Skipping purge process for expired records.$NC"
+    fi
+    finito
+    ;;
+  cleanup_obsolete)
+    echo -e "${blue}Going to list obsolete files:$NC"
+    ${RMANCONN} < $TMPFILE | tee -a $LOGFILE
+    echo -e "${blue}Above tables list the obsolete files - i.e. those which are outdated"
+    echo -e "according to your retention policy. To free diskspace (and keep your records"
+    echo -e "small especially when not using a catalog DB), you can purge them now, i.e."
+    echo -e "removing them from the disk and catalog/controlfile."
+    echo -en "Do you want to purge those files and records now (y/n)? $NC"
+    yesno
+    if [ "$res" = "y" ]; then
+      echo -e "${blue}Purging files and catalog/controlfile:$NC"
+      cat $BINDIR/rman.${CMD}_doit > $TMPFILE
+      echo exit >> $TMPFILE
+      ${RMANCONN} < $TMPFILE | tee -a $LOGFILE
+    else
+      echo -e "${blue}Skipping purge process for obsolete files and records.$NC"
+    fi
+    finito
     ;;
   block_recover)
     header
@@ -148,9 +223,10 @@ case "$CMD" in
     echo -en "  ${blue}Going to recover block # $blockno for file # $fileno. Continue (y/n)?$NC "
     yesno
     stayorgo
-    cat $CONFIG > $TMPFILE
-    echo "BLOCKRECOVER DATAFILE $fileno BLOCK $blockno;" >> $TMPFILE
+    echo "BLOCKRECOVER DATAFILE $fileno BLOCK $blockno;" > $TMPFILE
+    echo exit >> $TMPFILE
     ${RMANCONN} < $TMPFILE | tee -a $LOGFILE
+    finito
     ;;
   recover)
     header
@@ -166,10 +242,11 @@ case "$CMD" in
     yesno
     stayorgo
     echo -e "${blue}OK, so we go to do a 'Fast Recovery' now, stand by...$NC"
-    cat $CONFIG >$TMPFILE
-    cat $BINDIR/rman.${CMD}_doit >>$TMPFILE
+    cat $BINDIR/rman.${CMD}_doit >$TMPFILE
+    echo exit >> $TMPFILE
     echo -e "${red}${blink}Running the recover process - don't interrupt now!$NC"
     ${RMANCONN} < $TMPFILE | tee -a $LOGFILE
+    finito
     ;;
   restore_full)
     header
@@ -186,10 +263,11 @@ case "$CMD" in
     echo -en "${red}Are you really sure to run the restore process (y/n)?$NC "
     yesno
     stayorgo
-    cat $CONFIG >$TMPFILE
-    cat $BINDIR/rman.${CMD}_doit >>$TMPFILE
+    cat $BINDIR/rman.${CMD}_doit >$TMPFILE
+    echo exit >> $TMPFILE
     echo -e "${red}${blink}Running the restore - don't interrupt now!$NC"
     ${RMANCONN} < $TMPFILE | tee -a $LOGFILE
+    finito
     ;;
   restore_ts)
     header
@@ -207,16 +285,17 @@ case "$CMD" in
     echo -n "Should we continue to recover tablespace '$tsname' (y/n)? "
     yesno
     stayorgo
-    cat $CONFIG > $TMPFILE
-    echo "SQL 'ALTER TABLESPACE ${tsname} OFFLINE IMMEDIATE';">>$TMPFILE
+    echo "SQL 'ALTER TABLESPACE ${tsname} OFFLINE IMMEDIATE';">$TMPFILE
     echo "RESTORE TABLESPACE ${tsname};">>$TMPFILE
     echo "RECOVER TABLESPACE ${tsname};">>$TMPFILE
     echo "SQL 'ALTER TABLESPACE $tsname ONLINE';">>$TMPFILE
     echo "exit">>$TMPFILE
     echo -e "${red}${blink}Running the restore - don't interrupt now!$NC"
     ${RMANCONN} < $TMPFILE | tee -a $LOGFILE
+    finito
     ;;
   restore_temp)
+    header
     echo -en "${blue}You are going to recreate the lost TEMP tablespace. Is that correct (y/n)?$NC "
     yesno
     stayorgo
@@ -227,6 +306,63 @@ case "$CMD" in
     echo "ALTER DATABASE DEFAULT TEMPORARY TABLESPACE TEMP;">$TMPFILE
     echo "exit">>$TMPFILE
     sqlplus / as sysdba <$TMPFILE
+    finito
+    ;;
+  force_clean)
+    header
+    echo -e "${blue}RMAN forgot to purge your obsolete level x backups? Yeah, it's buggy..."
+    echo -e "Let's see if we find any level x backups not having a parent full backup:$NC"
+    echo "LIST BACKUP SUMMARY;" | $RMANCONN > $TMPFILE
+    typeset i idx=0
+    while read line; do
+      level=`echo $line | awk '{ print $3 }'`
+      key=`echo $line | awk '{ print $1 }'`
+      [ "$level" != "F" ] && {
+        [ ${#level} -eq 1 ] && {
+          obskey[$idx]=$key
+	  obslvl[$idx]=$level
+	  let idx=$idx+1
+	}
+        key=
+        continue
+      }
+      break;
+    done<$TMPFILE
+    if [ ${#obskey[*]} -gt 0 ]; then
+      echo "First full backup has key ${key}. Following orphaned backups were found:"
+      idx=0
+      while [ $idx -lt ${#obskey[*]} ]; do
+        echo "- ${obskey[$idx]} : Level ${obslvl[$idx]}"
+	let idx=$idx+1
+      done
+      echo -e "${blue}You want to purge these ghosts (y/n)? $NC"
+      yesno
+      stayorgo
+      echo -e "${blue}Purging orphaned cumulative backup sets..."
+      cat /dev/null > $TMPFILE
+      idx=0
+      while [ $idx -lt ${#obskey[*]} ]; do
+        echo "DELETE NOPROMPT BACKUPSET ${obskey[$idx]};" >> $TMPFILE
+	let idx=$idx+1
+      done
+      ${RMANCONN} < $TMPFILE | tee -a $LOGFILE
+    elif [ -n "$key" ]; then
+      echo "First full backup has key ${key}. We found no orphaned level x backups."
+    else
+      echo -e "${red}Looks like you don't have any full backup!$NC"
+      echo -e "${blue}Suggest you make some backups before purging them :)$NC"
+      exit 0
+    fi
+    echo -e "${blue}Shall we also look for forgotten archive logs, i.e. those completed"
+    echo -en "before the first full backup was started (y/n)? $NC"
+    yesno
+    stayorgo
+    echo "SET HEAD OFF">$TMPFILE
+    echo "SELECT TO_CHAR(start_time,'YYYY-MM-DD HH24:MI:SS') FROM v\$backup_piece_details WHERE bs_key=$key;">>$TMPFILE
+    fdat=`sqlplus -s / as sysdba<$TMPFILE`
+    fdat=`echo $fdat|sed 's/\n//g'`
+    echo "DELETE NOPROMPT ARCHIVELOG COMPLETED BEFORE TO_DATE('$fdat','YYYY-MM-DD HH24:MI:SS');"|${RMANCONN} | tee -a $LOGFILE
+    finito
     ;;
   *)
     help

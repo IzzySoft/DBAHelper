@@ -1,0 +1,4 @@
+# $Id$
+# This deletes OBSOLETE backups (i.e. those where the files are outdated
+# according to the retention policy) from the catalog/controlfile and disk
+DELETE NOPROMPT OBSOLETE;

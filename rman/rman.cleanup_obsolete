@@ -1,0 +1,4 @@
+# $Id$
+# This lists OBSOLETE backups (i.e. those where the files are outdated
+# according to the retention policy)
+REPORT OBSOLETE;

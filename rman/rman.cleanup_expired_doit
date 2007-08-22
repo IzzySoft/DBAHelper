@@ -1,0 +1,7 @@
+# $Id$
+# This deletes expired backups (i.e. those where the files are not found
+# during the last crosscheck) from the catalog/controlfile
+DELETE NOPROMPT EXPIRED BACKUP;
+DELETE NOPROMPT EXPIRED ARCHIVELOG ALL;
+DELETE NOPROMPT EXPIRED COPY;
+DELETE NOPROMPT EXPIRED DATAFILECOPY ALL;

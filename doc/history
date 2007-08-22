@@ -8,6 +8,16 @@ v0.1.9
 + rman.sh: added recover command
 * rman.sh: colors now only used when TERM variable set (avoid errors w/ cron)
 + rman.sh: added block_recover command
++ rman.sh: added commands cleanup_expired and cleanup_obsolete
++ rman.sh: added command force_cleanup. Use this with care. It's main intention
+  is to work around a couple of Oracle bugs (see Metalink notes 4348860.1,
+  314217.1, 315098.1, 305812.1, 289653.1 as well as bugs 5073511 and 5106952).
+  In short: RMAN doesn't care about the archived logs directly stored into the
+  FRA (flash recovery area), and also forgets to purge cumulative backups
+  (leaving them orphaned w/o any parent to apply them on) - with the final
+  result that the FRA size will be exceeded, further backups fail due to this,
+  and the database comes to a stand-still since redo logs cannot be archived
+  anymore. If you don't have this problem, you don't need this command.
 
 v0.1.8 (17.07.2007)
 -------------------

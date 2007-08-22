@@ -1,0 +1,53 @@
+RMAN README
+===========
+
+This is not a complete documentation (yet), but just to clarify some important
+issues.
+
+rman.sh force_cleanup
+---------------------
+
+This command should be used carefully, since it has not yet been tested
+thorougly. It is only needed if you are affected by a couple of Oracle bugs,
+described in Oracle MetaLink documents notes 4348860.1, 314217.1, 315098.1,
+305812.1, 289653.1 as well as bugs 5073511 and 5106952. As you can see: Quite
+a lot of documents. The latest of them claim the problems have been solved
+with Oracle 10g R2 (at least 10.2.0.3) - but I cannot confirm this, I still
+found the bugs existing with this version.
+
+Problem description:
+
+1) You set up your Oracle database instance using the FRA (flash recovery
+   area) as (only) log archive destination (so all your archived logs will be
+   sent there by the DB)
+2) Your backup strategy involves incremental backups
+3) Your retention policy is set to use a recovery window
+
+Usually, Oracle should take care for the size of the FRA, deleting obsolete
+files when the configured db_recovery_file_dest_size is reached. While this
+seem to work fine for control file auto backups and full backups, at least
+under the above conditions Oracle completely forgets about the archived redo
+logs as well as the cumulative backups. As a result, sooner or later the
+db_recovery_file_dest_size will be exceeded - which means, further backups
+will fail. But don't worry about that, you either won't need them - because
+short after that the whole database instance will come to a stand-still, since
+it cannot archive any redo log anymore for the same reason.
+
+There are a couple of work arounds possible:
+- Don't sent the archived logs directly to the FRA. Rather store them somewhere
+  else, and then tell RMAN to back them up to the FRA using the command
+  "BACKUP ARCHIVE LOG ALL DELETE INPUT"
+- Don't use cumulative backups - or chose a different retention policy than
+  "recovery window". Recommended is "redundancy 1" - great, yeah?
+
+Not happy with this? Neither we are. So here comes the work-around provided by
+the rman.sh script:
+Using the force_cleanup command, the tool retrieves a list of all available
+backups, and parses it for the first full backup and all preceding (and thus
+orphaned) cumulative backups. It presents the results, and leaves you the
+choice to delete the orphans.
+In the next step, it queries the V$BACKUP_PIECE_DETAILS for the start time of
+the reported first full backup, and then tells RMAN to delete all archived logs
+which *completed* *before* the last full backup was started.
+
+Should be safe so far - but still, use it on your own risk :)
