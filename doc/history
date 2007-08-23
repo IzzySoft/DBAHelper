@@ -21,6 +21,9 @@ v0.1.9
 + rman.sh: added --yestoall option to allow unattended runs. Use this with care
   and only if you know what you are doing ;)
 + added documentation for the rman.sh script
+* rman.sh: outsourced config to rmanrc
++ rman.sh: added cmd line options '-q' and '--dryrun'
++ rman.sh: made TempTS settings configurable
 
 v0.1.8 (17.07.2007)
 -------------------

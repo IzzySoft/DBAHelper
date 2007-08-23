@@ -340,11 +340,24 @@ case "$CMD" in
     echo -en "${blue}You are going to recreate the lost TEMP tablespace. Is that correct (y/n)?$NC "
     yesno
     stayorgo
+    say "${blue}Please confirm the data for the temporary tablespace:"
+    echo -en "* Name (${TEMPTS_NAME}): $NC"
+    read input
+    [ -n "$input" ] && TEMPTS_NAME=$input
+    echo -en "${blue}Filename (${TEMPTS_FILE}): $NC"
+    read input
+    [ -n "$input" ] && TEMPTS_FILEE=$input
+    echo -en "${blue}Size (${TEMPTS_SIZE}): $NC"
+    read input
+    [ -n "$input" ] && TEMPTS_SIZE=$input
+    echo -en "${blue}AutoExtend (${TEMPTS_AUTOEXTEND}): $NC"
+    read input
+    [ -n "$input" ] && TEMPTS_AUTOEXTEND=$input
     say "${blue}Recreating temporary tablespace, stand by...$NC"
     echo "ALTER DATABASE DEFAULT TEMPORARY TABLESPACE system;">$TMPFILE
-    echo "DROP TABLESPACE temp;">>$TMPFILE
-    echo "CREATE TEMPORARY TABLESPACE temp TEMPFILE '/local/database/a01/${ORACLE_SID}/dbf/temp01.dbf' REUSE SIZE 512 M AUTOEXTEND OFF;">>$TMPFILE
-    echo "ALTER DATABASE DEFAULT TEMPORARY TABLESPACE TEMP;">>$TMPFILE
+    echo "DROP TABLESPACE ${TEMPTS_NAME};">>$TMPFILE
+    echo "CREATE TEMPORARY TABLESPACE ${TEMPTS_NAME} TEMPFILE '${TEMPTS_FILE}' REUSE SIZE ${TEMPTS_SIZE} AUTOEXTEND ${TEMPTS_AUTOEXTEND};">>$TMPFILE
+    echo "ALTER DATABASE DEFAULT TEMPORARY TABLESPACE ${TEMPTS_NAME};">>$TMPFILE
     echo "exit">>$TMPFILE
     runcmd "sqlplus / as sysdba <$TMPFILE" "$TMPFILE"
     finito
