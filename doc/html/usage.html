@@ -349,12 +349,21 @@
            directory, see inside the script itself for now.</td></tr>
    <tr><td class="td_name"><code>-p &lt;password&gt;</code></td>
        <td class="text">Password to use to connect to the target database.</td></tr>
+   <tr><td class="td_name"><code>-q</code></td>
+       <td class="text">Be quiet - don't produce so much output. Can be specified
+           multiple times: <code>-q</code> redirects STDOUT from called progs to
+	   <code>/dev/null</code>, <code>-q -q</code> additionally redirects
+	   STDERR, and <code>-q -q -q</code> even suppresses most of the "background
+	   information" (except for the questions asked) the script itself produces.</td></tr>
    <tr><td class="td_name"><code>-r &lt;catalog specification&gt;</code></td>
        <td class="text">complete connection description for the recovery catalog
            to use (if any). This includes username, password and connection (if needed),
 	   e.g. <code>user/pass@remote</code>.</td></tr>
    <tr><td class="td_name"><code>-u &lt;username&gt;</code></td>
        <td class="text">User to connect to the target database</td></tr>
+   <tr><td class="td_name"><code>--dryrun</code></td>
+       <td class="text">Don't run commands that would do changes, just display
+           what would be done</td></tr>
    <tr><td class="td_name"><code>--force-configure</code></td>
        <td class="text">By default, <code>rman.sh</code> runs the <code>rman.conf</code>
            the first time you called it - and afterwards touches a reference file,

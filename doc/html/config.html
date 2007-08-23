@@ -137,8 +137,35 @@
   RMAN configuration mostly takes place in the <code>rman/rman.conf</code> file.
   For syntax and convention, please consult the RMAN manual. However, some
   settings can be passed on the command line - see <A HREF="usage.html#rman">RMAN
-  usage</A> for details. Very few settings are made inside the rman.sh script
-  itself - check only at the top of the script, in the 'Settings' section.
+  usage</A> for details. Some settings are made inside the <code>rmanrc</code> file:
+ </td></tr>
+ <tr><td class="text">
+  <table align="center" width="95%">
+   <tr><th class="th_sub2">Variable</th><th class="th_sub2">Explanation</th></tr>
+   <tr><td class="td_name"><code>LOGDIR</code></td>
+       <td class="text">Directory where the log files should be created in.</td></tr>
+   <tr><td class="td_name"><code>TMPFILE</code></td>
+       <td class="text">File to be used for temporary stuff (usually to setup
+           scripts to run). This file will be created when needed and deleted after
+	   each run.</td></tr>
+   <tr><td class="td_name"><code>TEMPTS_NAME</code></td>
+       <td class="text">Default name for your temporary tablespace. Used by the
+           restore_ts command, which will ask you to confirm it on run.</td></tr>
+   <tr><td class="td_name"><code>TEMPTS_FILE</code></td>
+       <td class="text">Exact location (path and file name) for the tempfile used
+           by your temporary tablespace. Used by the
+           restore_ts command, which will ask you to confirm it on run.</td></tr>
+   <tr><td class="td_name"><code>TEMPTS_SIZE</code></td>
+       <td class="text">Size for your temporary tablespace (see Oracle documentation
+           for syntax - usually this is an integer optionally followed by "K" for
+	   kilobytes, "M" for megabytes or "G" for gigabytes). Used by the
+           restore_ts command, which will ask you to confirm it on run.</td></tr>
+   <tr><td class="td_name"><code>TEMPTS_AUTOEXTEND</code></td>
+       <td class="text">Whether your temporary tablespace should make use of the
+           AutoExtend feature (ON) or not (OFF). Refer to your Oracle documentation
+	   for more details. Used by the
+           restore_ts command, which will ask you to confirm it on run.</td></tr>
+  </table>
  </td></tr>
 </table>
 
