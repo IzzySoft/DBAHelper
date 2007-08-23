@@ -1,0 +1,2 @@
+LOGDIR=/local/database/a01/${ORACLE_SID}/dump/log
+TMPFILE=/tmp/rman.$$

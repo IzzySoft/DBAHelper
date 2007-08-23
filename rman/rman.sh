@@ -12,10 +12,12 @@ fi
 
 #---------------------------------------------------------------[ Settings ]---
 BINDIR=${0%/*}
-LOGDIR=/local/database/a01/${ORACLE_SID}/dump/log
-TMPFILE=/tmp/rman.$$
 CONFIGUREOPTS=
+DRYRUN=0
+typeset -i SILENT=0
 YESTOALL=0
+
+. ${BINDIR}/rmanrc
 
 #-----------------------------------------------------------------[ Colors ]---
 if [ -n "${TERM}" ]; then
@@ -54,8 +56,10 @@ function help {
   echo "     -c <alternate ConfigFile>"
   echo "     -l <Log File Name>"
   echo "     -p <Password>"
+  echo "     -q Be quiet (repeat up to 3 times)"
   echo "     -r <ORACLE_SID/Connection String for Catalog DB (Repository)>"
   echo "     -u <username>"
+  echo "     --dryrun		Don't do anything, just show what would be done"
   echo "     --force-configure	Force the configure script to run"
   echo -e "     --yestoall		Assume 'yes' to all questions. ${red}Use with care!$NC"
   echo "  Example: Do the daily backup, using the config file /etc/dummy.conf:"
@@ -69,6 +73,11 @@ function help {
 }
 
 #=======================================================[ Helper functions ]===
+#-----------------------------------------------[ Show progress (or don't) ]---
+function say {
+  [ $SILENT -lt 3 ] && echo -e "$1"
+}
+
 #------------------[ Read one char user input and convert it to lower case ]---
 function yesno {
   if [ $YESTOALL -gt 0 ]; then
@@ -83,7 +92,7 @@ function yesno {
 #----------------------------------[ Quit if user not entered y|Y at yesno ]---
 function stayorgo {
   [ "$res" != "y" ] && {
-    echo -e "${blue}* Process canceled.$NC"
+    say "${blue}* Process canceled.$NC"
     exit 0
   }
   echo
@@ -91,17 +100,17 @@ function stayorgo {
 
 #---------------------------------------[ Normal exit after completed work ]---
 function finito {
-  echo -e "${blue}Task completed.$NC"
+  say "${blue}Task completed.$NC"
   exit 0
 }
 
 #------------------------------------------[ Display introductional header ]---
 function header {
-  clear
-  echo -e "${blue}RMAN Wrapper Script"
-  echo -e "-------------------${NC}"
-  echo
-  echo Running $CMD
+  [ $SILENT -lt 3 ] && clear
+  say "${blue}RMAN Wrapper Script"
+  say "-------------------${NC}"
+  say
+  say "Running $CMD"
 }
 
 #--------------------------[ Read user input and make sure it is numerical ]---
@@ -130,11 +139,32 @@ function runconfig {
       [ ~/.rman_configured -nt $CONFIG ] && CONFIGURED=1
     }
   [ $CONFIGURED -eq 0 ] && {
-    echo -e "${blue}The configuration file has been changed (or never run before), so we may"
-    echo -e "need to configure the RMAN settings. Running the configuration commands now:$NC"
+    say "${blue}The configuration file has been changed (or never run before), so we may"
+    say "need to configure the RMAN settings. Running the configuration commands now:$NC"
     ${RMANCONN} < $CONFIG | tee -a $LOGFILE
     touch ~/.rman_configured
   }
+}
+
+#---------------------------------[ Run or display CMD depending on DRYRUN ]---
+# $1 - CMD
+# $2 - Scriptfile to display when in dryrun
+function runcmd {
+  if [ $DRYRUN -eq 0 ]; then
+    case $SILENT in
+      0) cmd="$1";;
+      1) cmd="$1 > /dev/null";;
+      2) cmd="$1 &> /dev/null";;
+    esac
+    eval $cmd
+  else
+    SILENT=0
+    say "${blue}Running command: ${NC}$1"
+    [ -n "$2" ] && {
+      say "${blue}Scriptfile content:$NC"
+      cat $2
+    }
+  fi
 }
 
 #=============================================================[ Do the job ]===
@@ -142,11 +172,13 @@ function runconfig {
 CMD=$1
 while [ "$1" != "" ] ; do
   case "$1" in
-    -r) shift; CATALOG=$1;;
-    -u) shift; username=$1;;
-    -p) shift; passwd=$1;;
     -c) shift; CONFIG=$1;;
     -l) shift; LOGFILE=$1;;
+    -p) shift; passwd=$1;;
+    -q) [ $SILENT -lt 3 ] && let SILENT=$SILENT+1;;
+    -r) shift; CATALOG=$1;;
+    -u) shift; username=$1;;
+    --dryrun)  DRYRUN=1;;
     --force-configure) CONFIGUREOPTS=force;;
     --yestoall) YESTOALL=1;;
   esac
@@ -176,54 +208,55 @@ runconfig $CONFIGOPTS
 case "$CMD" in
   backup_daily|validate|crosscheck)
     header
-    ${RMANCONN} < $TMPFILE | tee -a $LOGFILE
+    runcmd "${RMANCONN} < $TMPFILE | tee -a $LOGFILE" "$TMPFILE"
     ;;
   cleanup_expired)
     header
-    ${RMANCONN} < $TMPFILE | tee -a $LOGFILE
-    echo -e "${blue}The long list on top shows the process of crosschecking. At the end of the"
-    echo -e "crosscheck, tables are displayed listing the expired objects, i.e. those are no"
-    echo -e "longer available on the disks, but still in the catalog/controlfile. To keep the"
-    echo -e "records small (especially when you are not using a catalog DB but the control files"
-    echo -e "to record your backups), we can purge them from the catalog/controlfile. Since they"
-    echo -e "do not exist anymore, those records are useless."
-    echo -en "Do you want to purge those records now (y/n)? $NC"
+    runcmd "${RMANCONN} < $TMPFILE | tee -a $LOGFILE" "$TMPFILE"
+    say "${blue}The long list on top shows the process of crosschecking. At the end of the"
+    say "crosscheck, tables are displayed listing the expired objects, i.e. those are no"
+    say "longer available on the disks, but still in the catalog/controlfile. To keep the"
+    say "records small (especially when you are not using a catalog DB but the control files"
+    say "to record your backups), we can purge them from the catalog/controlfile. Since they"
+    say "do not exist anymore, those records are useless.$NC"
+    echo -en "${blue}Do you want to purge the expired records now (y/n)? $NC"
     yesno
     if [ "$res" = "y" ]; then
-      echo -e "${blue}Purging catalog/controlfile:$NC"
+      say "${blue}Purging catalog/controlfile:$NC"
       cat $BINDIR/rman.${CMD}_doit > $TMPFILE
       echo exit >> $TMPFILE
-      ${RMANCONN} < $TMPFILE | tee -a $LOGFILE
+      runcmd "${RMANCONN} < $TMPFILE | tee -a $LOGFILE" "$TMPFILE"
     else
-      echo -e "${blue}Skipping purge process for expired records.$NC"
+      say "${blue}Skipping purge process for expired records.$NC"
     fi
     finito
     ;;
   cleanup_obsolete)
-    echo -e "${blue}Going to list obsolete files:$NC"
-    ${RMANCONN} < $TMPFILE | tee -a $LOGFILE
-    echo -e "${blue}Above tables list the obsolete files - i.e. those which are outdated"
-    echo -e "according to your retention policy. To free diskspace (and keep your records"
-    echo -e "small especially when not using a catalog DB), you can purge them now, i.e."
-    echo -e "removing them from the disk and catalog/controlfile."
-    echo -en "Do you want to purge those files and records now (y/n)? $NC"
+    header
+    say "${blue}Going to list obsolete files:$NC"
+    runcmd "${RMANCONN} < $TMPFILE | tee -a $LOGFILE" "$TMPFILE"
+    say "${blue}Above tables list the obsolete files - i.e. those which are outdated"
+    say "according to your retention policy. To free diskspace (and keep your records"
+    say "small especially when not using a catalog DB), you can purge them now, i.e."
+    say "removing them from the disk and catalog/controlfile.$NC"
+    echo -en "${blue}Do you want to purge the obsolete files and records now (y/n)? $NC"
     yesno
     if [ "$res" = "y" ]; then
-      echo -e "${blue}Purging files and catalog/controlfile:$NC"
+      say "${blue}Purging files and catalog/controlfile:$NC"
       cat $BINDIR/rman.${CMD}_doit > $TMPFILE
       echo exit >> $TMPFILE
-      ${RMANCONN} < $TMPFILE | tee -a $LOGFILE
+      runcmd "${RMANCONN} < $TMPFILE | tee -a $LOGFILE" "$TMPFILE"
     else
-      echo -e "${blue}Skipping purge process for obsolete files and records.$NC"
+      say "${blue}Skipping purge process for obsolete files and records.$NC"
     fi
     finito
     ;;
   block_recover)
     header
-    echo -e "${blue}* You asked for a block recovery. Please provide the required data"
-    echo -e "  (you probably find them either in the application which alerted you about"
-    echo -e "  the problem, or at least in the alert log. Look out for a message like$NC"
-    echo "    ORA-1578: ORACLE data block corrupted (file # 6, block # 1234)"
+    say "${blue}* You asked for a block recovery. Please provide the required data"
+    say "  (you probably find them either in the application which alerted you about"
+    say "  the problem, or at least in the alert log. Look out for a message like$NC"
+    say "    ORA-1578: ORACLE data block corrupted (file # 6, block # 1234)"
     readnr "Please enter the file #"
     fileno=$nr
     readnr "Please enter the block #"
@@ -233,62 +266,62 @@ case "$CMD" in
     stayorgo
     echo "BLOCKRECOVER DATAFILE $fileno BLOCK $blockno;" > $TMPFILE
     echo exit >> $TMPFILE
-    ${RMANCONN} < $TMPFILE | tee -a $LOGFILE
+    runcmd "${RMANCONN} < $TMPFILE | tee -a $LOGFILE" "$TMPFILE"
     finito
     ;;
   recover)
     header
-    echo -e "${blue}* Test whether a fast recovery is possible:$NC"
-    ${RMANCONN} < $TMPFILE | tee -a $LOGFILE
-    echo -e "${blue}Please check above output for errors. A line like$NC"
-    echo "  ORA-01124: cannot recover data file 1 - file is in use or recovery"
-    echo -e "${blue}means the database is still up and running, and you rather should check"
-    echo -e "the alert log for what is broken and e.g. recover that tablespace"
-    echo -e "explicitly with \"${0##*/} recover_ts\". Don't continue in this case;"
-    echo -e "it would fail either."
-    echo -en "Continue with the recovery (y/n)?$NC "
+    say "${blue}* Test whether a fast recovery is possible:$NC"
+    runcmd "${RMANCONN} < $TMPFILE | tee -a $LOGFILE" "$TMPFILE"
+    say "${blue}Please check above output for errors. A line like$NC"
+    say "  ORA-01124: cannot recover data file 1 - file is in use or recovery"
+    say "${blue}means the database is still up and running, and you rather should check"
+    say "the alert log for what is broken and e.g. recover that tablespace"
+    say "explicitly with \"${0##*/} recover_ts\". Don't continue in this case;"
+    say "it would fail either.$NC"
+    echo -en "${blue}Continue with the recovery (y/n)?$NC "
     yesno
     stayorgo
-    echo -e "${blue}OK, so we go to do a 'Fast Recovery' now, stand by...$NC"
+    say "${blue}OK, so we go to do a 'Fast Recovery' now, stand by...$NC"
     cat $BINDIR/rman.${CMD}_doit >$TMPFILE
     echo exit >> $TMPFILE
     echo -e "${red}${blink}Running the recover process - don't interrupt now!$NC"
-    ${RMANCONN} < $TMPFILE | tee -a $LOGFILE
+    runcmd "${RMANCONN} < $TMPFILE | tee -a $LOGFILE" "$TMPFILE"
     finito
     ;;
   restore_full)
     header
-    echo -e "${blue}* Verify backup and show what WOULD be done:$NC"
-    ${RMANCONN} < $TMPFILE | tee -a $LOGFILE
+    say "${blue}* Verify backup and show what WOULD be done:$NC"
+    runcmd "${RMANCONN} < $TMPFILE | tee -a $LOGFILE" "$TMPFILE"
     echo -en "${blue}Above actions will be taken if you continue. Are you sure (y/n)?$NC "
     yesno
     stayorgo
-    echo -e "${blue}You decided to restore the database '$ORACLE_SID' from the displayed backup."
-    echo -e "Hopefully, you've been studying the output carefully - in case some data may"
-    echo -e "not be recoverable, it should have been displayed. Otherwise, you may not be"
-    echo -e "able to restore to the latest state (some of the last transactions may be lost"
-    echo -e "then). Last chance to abort, so:$NC"
+    say "${blue}You decided to restore the database '$ORACLE_SID' from the displayed backup."
+    say "Hopefully, you've been studying the output carefully - in case some data may"
+    say "not be recoverable, it should have been displayed. Otherwise, you may not be"
+    say "able to restore to the latest state (some of the last transactions may be lost"
+    say "then). Last chance to abort, so:$NC"
     echo -en "${red}Are you really sure to run the restore process (y/n)?$NC "
     yesno
     stayorgo
     cat $BINDIR/rman.${CMD}_doit >$TMPFILE
     echo exit >> $TMPFILE
     echo -e "${red}${blink}Running the restore - don't interrupt now!$NC"
-    ${RMANCONN} < $TMPFILE | tee -a $LOGFILE
+    runcmd "${RMANCONN} < $TMPFILE | tee -a $LOGFILE" "$TMPFILE"
     finito
     ;;
   restore_ts)
     header
-    echo -e "${blue}* Verify backup and show what WOULD be done:$NC"
+    say "${blue}* Verify backup and show what WOULD be done:$NC"
     read -p "Specify the tablespace to restore: " tsname
-    echo -n "About to restore/recover tablespace '$tsname'. Is this OK (y/n)? "
+    echo -en "${blue}About to restore/recover tablespace '$tsname'. Is this OK (y/n)? $NC"
     yesno
     stayorgo
-    echo -e "${blue}* Verify backup and show what WOULD be done:$NC"
+    say "${blue}* Verify backup and show what WOULD be done:$NC"
     echo "RESTORE TABLESPACE $tsname PREVIEW SUMMARY;">>$TMPFILE
     echo "RESTORE TABLESPACE $tsname VALIDATE;">>$TMPFILE
     echo "exit">>$TMPFILE
-    ${RMANCONN} < $TMPFILE | tee -a $LOGFILE
+    runcmd "${RMANCONN} < $TMPFILE | tee -a $LOGFILE" "$TMPFILE"
     echo -e "${blue}Please check above output carefully for possible problems!$NC"
     echo -n "Should we continue to recover tablespace '$tsname' (y/n)? "
     yesno
@@ -299,7 +332,7 @@ case "$CMD" in
     echo "SQL 'ALTER TABLESPACE $tsname ONLINE';">>$TMPFILE
     echo "exit">>$TMPFILE
     echo -e "${red}${blink}Running the restore - don't interrupt now!$NC"
-    ${RMANCONN} < $TMPFILE | tee -a $LOGFILE
+    runcmd "${RMANCONN} < $TMPFILE | tee -a $LOGFILE" "$TMPFILE"
     finito
     ;;
   restore_temp)
@@ -307,19 +340,19 @@ case "$CMD" in
     echo -en "${blue}You are going to recreate the lost TEMP tablespace. Is that correct (y/n)?$NC "
     yesno
     stayorgo
-    echo -e "${blue}Recreating temporary tablespace, stand by...$NC"
+    say "${blue}Recreating temporary tablespace, stand by...$NC"
     echo "ALTER DATABASE DEFAULT TEMPORARY TABLESPACE system;">$TMPFILE
     echo "DROP TABLESPACE temp;">>$TMPFILE
     echo "CREATE TEMPORARY TABLESPACE temp TEMPFILE '/local/database/a01/${ORACLE_SID}/dbf/temp01.dbf' REUSE SIZE 512 M AUTOEXTEND OFF;">>$TMPFILE
-    echo "ALTER DATABASE DEFAULT TEMPORARY TABLESPACE TEMP;">$TMPFILE
+    echo "ALTER DATABASE DEFAULT TEMPORARY TABLESPACE TEMP;">>$TMPFILE
     echo "exit">>$TMPFILE
-    sqlplus / as sysdba <$TMPFILE
+    runcmd "sqlplus / as sysdba <$TMPFILE" "$TMPFILE"
     finito
     ;;
   force_clean)
     header
-    echo -e "${blue}RMAN forgot to purge your obsolete level x backups? Yeah, it's buggy..."
-    echo -e "Let's see if we find any level x backups not having a parent full backup:$NC"
+    say "${blue}RMAN forgot to purge your obsolete level x backups? Yeah, it's buggy..."
+    say "Let's see if we find any level x backups not having a parent full backup:$NC"
     echo "LIST BACKUP SUMMARY;" | $RMANCONN > $TMPFILE
     typeset i idx=0
     while read line; do
@@ -337,29 +370,29 @@ case "$CMD" in
       break;
     done<$TMPFILE
     if [ ${#obskey[*]} -gt 0 ]; then
-      echo "First full backup has key ${key}. Following orphaned backups were found:"
+      say "First full backup has key ${key}. Following orphaned backups were found:"
       idx=0
       while [ $idx -lt ${#obskey[*]} ]; do
-        echo "- ${obskey[$idx]} : Level ${obslvl[$idx]}"
+        say "- ${obskey[$idx]} : Level ${obslvl[$idx]}"
 	let idx=$idx+1
       done
-      echo -e "${blue}You want to purge these ghosts (y/n)? $NC"
+      echo -en "${blue}You want to purge the orphans (y/n)? $NC"
       yesno
       stayorgo
-      echo -e "${blue}Purging orphaned cumulative backup sets..."
+      say "${blue}Purging orphaned cumulative backup sets..."
       cat /dev/null > $TMPFILE
       idx=0
       while [ $idx -lt ${#obskey[*]} ]; do
         echo "DELETE NOPROMPT BACKUPSET ${obskey[$idx]};" >> $TMPFILE
 	let idx=$idx+1
       done
-      ${RMANCONN} < $TMPFILE | tee -a $LOGFILE
+      runcmd "${RMANCONN} < $TMPFILE | tee -a $LOGFILE" "$TMPFILE"
     elif [ -n "$key" ]; then
-      echo "First full backup has key ${key}. We found no orphaned level x backups."
+      say "First full backup has key ${key}. We found no orphaned level x backups."
     else
       echo -e "${red}Looks like you don't have any full backup!$NC"
       echo -e "${blue}Suggest you make some backups before purging them :)$NC"
-      exit 0
+      exit 1
     fi
     echo -e "${blue}Shall we also look for forgotten archive logs, i.e. those completed"
     echo -en "before the first full backup was started (y/n)? $NC"
@@ -369,7 +402,7 @@ case "$CMD" in
     echo "SELECT TO_CHAR(start_time,'YYYY-MM-DD HH24:MI:SS') FROM v\$backup_piece_details WHERE bs_key=$key;">>$TMPFILE
     fdat=`sqlplus -s / as sysdba<$TMPFILE`
     fdat=`echo $fdat|sed 's/\n//g'`
-    echo "DELETE NOPROMPT ARCHIVELOG COMPLETED BEFORE TO_DATE('$fdat','YYYY-MM-DD HH24:MI:SS');"|${RMANCONN} | tee -a $LOGFILE
+    runcmd "echo \"DELETE NOPROMPT ARCHIVELOG COMPLETED BEFORE TO_DATE('$fdat','YYYY-MM-DD HH24:MI:SS');\"|${RMANCONN} | tee -a $LOGFILE"
     finito
     ;;
   *)
