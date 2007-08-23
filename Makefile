@@ -18,7 +18,7 @@ install: installdirs
 	$(INSTALL_DATA) -c -p doc/html/* $(docdir)/html
 	$(INSTALL_DATA) -c -p doc/history $(docdir)
 	$(INSTALL_DATA) -c -p doc/LICENSE $(docdir)
-	$(INSTALL_DATA) -c -p doc/readme.txt $(docdir)
+	$(INSTALL_DATA) -c -p doc/readme.* $(docdir)
 	$(INSTALL_DATA) -c -p doc/install.txt $(docdir)
 
 installdirs:
