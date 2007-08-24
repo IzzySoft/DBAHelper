@@ -392,7 +392,7 @@ case "$CMD" in
       echo -en "${blue}You want to purge the orphans (y/n)? $NC"
       yesno
       stayorgo
-      say "${blue}Purging orphaned cumulative backup sets..."
+      say "${blue}Purging orphaned cumulative backup sets...$NC"
       cat /dev/null > $TMPFILE
       idx=0
       while [ $idx -lt ${#obskey[*]} ]; do
@@ -415,7 +415,7 @@ case "$CMD" in
     echo "SELECT TO_CHAR(start_time,'YYYY-MM-DD HH24:MI:SS') FROM v\$backup_piece_details WHERE bs_key=$key;">>$TMPFILE
     fdat=`sqlplus -s / as sysdba<$TMPFILE`
     fdat=`echo $fdat|sed 's/\n//g'`
-    runcmd "echo \"DELETE NOPROMPT ARCHIVELOG COMPLETED BEFORE \\\"TO_DATE('$fdat','YYYY-MM-DD HH24:MI:SS')\\\";\"|${RMANCONN} | tee -a $LOGFILE"
+    runcmd "echo \"DELETE NOPROMPT ARCHIVELOG ALL COMPLETED BEFORE \\\"TO_DATE('$fdat','YYYY-MM-DD HH24:MI:SS')\\\";\"|${RMANCONN} | tee -a $LOGFILE"
     finito
     ;;
   *)
