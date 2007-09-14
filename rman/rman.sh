@@ -110,7 +110,11 @@ function header {
   say "${blue}RMAN Wrapper Script"
   say "-------------------${NC}"
   say
-  say "Running $CMD"
+  if [ $DRYRUN -eq 0 ]; then
+    say "Running $CMD"
+  else
+    say "Running $CMD (Dryrun)"
+  fi
 }
 
 #--------------------------[ Read user input and make sure it is numerical ]---
@@ -364,55 +368,122 @@ case "$CMD" in
     ;;
   force_clean)
     header
-    say "${blue}RMAN forgot to purge your obsolete level x backups? Yeah, it's buggy..."
-    say "Let's see if we find any level x backups not having a parent full backup:$NC"
-    echo "LIST BACKUP SUMMARY;" | $RMANCONN > $TMPFILE
-    typeset i idx=0
+    say "${blue}Checking for obsolete level x backups (not having a parent full backup):$NC"
+    say "${blue}* Obtaining info about oldest available full backup...$NC"
+    #
+    # obtaining oldest available full backup
+    echo "LIST COPY OF DATABASE;" | $RMANCONN > $TMPFILE
     while read line; do
-      level=`echo $line | awk '{ print $3 }'`
-      key=`echo $line | awk '{ print $1 }'`
-      [ "$level" != "F" ] && {
-        [ ${#level} -eq 1 ] && {
-          obskey[$idx]=$key
-	  obslvl[$idx]=$level
-	  let idx=$idx+1
-	}
-        key=
-        continue
-      }
-      break;
+      status=`echo $line | awk '{ print $3 }'`
+      [ "$status" != "A" ] && continue
+      fkey=`echo $line | awk '{ print $1 }'`
+      break
     done<$TMPFILE
-    if [ ${#obskey[*]} -gt 0 ]; then
-      say "First full backup has key ${key}. Following orphaned backups were found:"
-      idx=0
-      while [ $idx -lt ${#obskey[*]} ]; do
-        say "- ${obskey[$idx]} : Level ${obslvl[$idx]}"
-	let idx=$idx+1
-      done
-      echo -en "${blue}You want to purge the orphans (y/n)? $NC"
-      yesno
-      stayorgo
-      say "${blue}Purging orphaned cumulative backup sets...$NC"
-      cat /dev/null > $TMPFILE
-      idx=0
-      while [ $idx -lt ${#obskey[*]} ]; do
-        echo "DELETE NOPROMPT BACKUPSET ${obskey[$idx]};" >> $TMPFILE
-	let idx=$idx+1
-      done
-      runcmd "${RMANCONN} < $TMPFILE | tee -a $LOGFILE" "$TMPFILE"
-    elif [ -n "$key" ]; then
-      say "First full backup has key ${key}. We found no orphaned level x backups."
-    else
+    if [ -z "$fkey" ]; then
       echo -e "${red}Looks like you don't have any full backup!$NC"
       echo -e "${blue}Suggest you make some backups before purging them :)$NC"
       exit 1
     fi
+    #
+    # Check database for backups older than the latest full backup (copy)
+    say "${blue}* Checking database for backups older than this...$NC"
+    echo "SET HEAD OFF FEEDBACK OFF LINES 6000 PAGES 0 TRIMSPOOL ON">$TMPFILE
+    echo "SELECT bs_key,handle,size_bytes_display,TO_CHAR(completion_time,'YYYY-MM-DD HH24:MI') datum FROM v\$backup_piece_details WHERE start_time < (SELECT MIN(min_checkpoint_time) FROM v\$backup_copy_summary);">>$TMPFILE
+    sqlplus -s / as sysdba<$TMPFILE>out.$$
+    typeset i idx=0
+    while read line; do
+      key=`echo $line | awk '{print $1}'`
+      [ -n "$key" ] && {
+        obskey[$idx]=$key
+	obsfile[$idx]=`echo $line | awk '{print $2}'`
+	obssize[$idx]=`echo $line | awk '{print $3}'`
+        datum[${bskey[$key]}]=`echo $line | awk '{ print $4" "$5 }'`
+	bskey[$key]=$idx
+	let idx=$idx+1
+      }
+    done<out.$$
+    rm -f out.$$
+    #
+    # Compare collected info with RMAN backup summary
+    say "${blue}* Synchronizing collected information with RMAN information...$NC"
+    echo "LIST BACKUP SUMMARY;" | $RMANCONN > $TMPFILE
+    typeset i idx=0
+    while read line; do
+      key=`echo $line | awk '{ print $1 }'`
+      [[ ${key:0:1} == [0-9] ]] || continue;
+      [ $key -gt $fkey ] && break
+      levl=`echo $line | awk '{ print $3 }'`
+      level[${bskey[$key]}]=$levl
+      if [ "$levl" = "F" ]; then
+        desc[${bskey[$key]}]="Full backup of datafile or control file"
+	type[${bskey[$key]}]="full"
+      elif [ "$levl" = "0" ]; then
+        desc[${bskey[$key]}]="Incremental base backup (level 0)"
+	type[${bskey[$key]}]="full"
+      else
+        desc[${bskey[$key]}]="Incremental backup (level $levl)"
+	type[${bskey[$key]}]="inc"
+      fi
+    done<$TMPFILE
+    #
+    # Presenting results and asking for actions
+    if [ ${#obskey[*]} -gt 0 ]; then
+      say "First full backup (datafile copy) has key ${fkey}."
+      say "Following orphaned/older backups were found:"
+      say
+      idx=0
+      echo "Key   Date             Size     Description"
+      echo "------------------------------------------------"
+      while [ $idx -lt ${#obskey[*]} ]; do
+        printf "%5i %-16s %8s %-30s\n" ${obskey[$idx]} "${datum[$idx]}" ${obssize[$idx]} "${desc[$idx]}"
+	let idx=$idx+1
+      done
+      say
+      echo -en "${blue}You want to purge ALL these orphans (y/n)? $NC"
+      yesno
+      if [ "$res" != "y" ]; then
+        echo -en "${blue}What do you want to purge: (F)ull (incl. level 0), (I)ncremental, or (N)one? "
+	read -n 1 -p "" ready
+        echo
+        lva=`echo $ready|tr [:upper:] [:lower:]`
+      else
+        lva='a'
+      fi
+      #
+      # Running the purge process
+      if [[ $lva == [afi] ]]; then
+        case "$lva" in
+	  a) say "${blue}Purging orphaned backups...$NC";;
+	  f) say "${blue}Purging old full backups...$NC";;
+	  i) say "${blue}Purging orphaned incremental backups...$NC"
+	esac
+        cat /dev/null > $TMPFILE
+        idx=0
+        while [ $idx -lt ${#obskey[*]} ]; do
+	  purgeit=0
+	  case "$lva" in
+	    f) [ "${level[$idx]}" = 'F' ] && purgeit=1;;
+	    i) [[ ${level[$idx]} == [0-9] ]] && purgeit=1;;
+	    a) purgeit=1;;
+	  esac
+          [ $purgeit -eq 1 ] && echo "DELETE NOPROMPT BACKUPSET ${obskey[$idx]};" >> $TMPFILE
+          let idx=$idx+1
+        done
+        runcmd "${RMANCONN} < $TMPFILE | tee -a $LOGFILE" "$TMPFILE"
+      else
+        say "${blue}* Skipping removal of orphaned backups.$NC"
+      fi
+    elif [ -n "$key" ]; then
+      say "First full backup has key ${fkey}. We found no older backups."
+    fi
+    #
+    # Checking whether to purge archive logs as well
     echo -e "${blue}Shall we also look for forgotten archive logs, i.e. those completed"
     echo -en "before the first full backup was started (y/n)? $NC"
     yesno
     stayorgo
     echo "SET HEAD OFF">$TMPFILE
-    echo "SELECT TO_CHAR(start_time,'YYYY-MM-DD HH24:MI:SS') FROM v\$backup_piece_details WHERE bs_key=$key;">>$TMPFILE
+    echo "SELECT TO_CHAR(start_time,'YYYY-MM-DD HH24:MI:SS') FROM v\$backup_piece_details WHERE bs_key=$fkey;">>$TMPFILE
     fdat=`sqlplus -s / as sysdba<$TMPFILE`
     fdat=`echo $fdat|sed 's/\n//g'`
     runcmd "echo \"DELETE NOPROMPT ARCHIVELOG ALL COMPLETED BEFORE \\\"TO_DATE('$fdat','YYYY-MM-DD HH24:MI:SS')\\\";\"|${RMANCONN} | tee -a $LOGFILE"
