@@ -1,5 +1,5 @@
 # =============================================================================
-# Oracle DBA Helpers              (c) 2002-2006 by IzzySoft (devel@izzysoft.de)
+# Oracle DBA Helpers              (c) 2002-2007 by IzzySoft (devel@izzysoft.de)
 # -----------------------------------------------------------------------------
 # $Id$
 # -----------------------------------------------------------------------------
@@ -55,6 +55,9 @@ without any argument, so they will show it.
 
   Script               | Intention
   ---------------------+-------------------------------------------------------
+  ExportOracleDB       | Wrapper to EXP for full DB export with default
+                       | parameters (overwrite on command line) and optional
+		       | compression of the resulting dump file
   Generate_createdb.sh | Reverse engineer the database creation script from a
                        | running instance (configuration within the script)
   analobj.sh           | Analyzes Objects for a given schema and outputs an
@@ -68,6 +71,7 @@ without any argument, so they will show it.
   lazywaste.sh         | Show resources wasted by "lazy" sessions
   tabmove.sh           | Moves tables from one tablespace to another
   tabreorg.sh          | Reorganizes fragmented tables (chained rows)
+  rman/rman.sh         | Wrapper to rman
 
 All scripts run via Sql*Plus and use its SPOOL command to log their activities.
 
@@ -78,7 +82,7 @@ All scripts run via Sql*Plus and use its SPOOL command to log their activities.
 
 1. Put all scripts into any directory you like. Make sure to keep them together
    with the "globalconf" file.
-2. Edit the "globalconf" file for the database user and password to use by all
+2. Edit the "globalconf" file for the database user and password to use by most
    scripts. We have to do so - no "CONNECT /" will work with remote databases
    for security reasons (although there is a way to do so, this is not
    recommended)

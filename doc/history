@@ -7,6 +7,7 @@ v0.2.1
 -------------------
 ! fixed configuration issue with backup_daily (UNTIL TIME parameter was missing)
 ! force_clean was incorrect
++ added script for full database export (with default options and optional compress)
 
 v0.2.0 (23.08.2007)
 -------------------

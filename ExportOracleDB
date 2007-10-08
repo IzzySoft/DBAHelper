@@ -1,0 +1,121 @@
+#!/bin/bash
+###############################################################################
+# Create a full database backup for the local instance specified by ORACLE_SID
+#------------------------------------------------------------------------------
+# run the script with the parameter "--help" to find out more
+# Exit codes (< 10 means: Export was still done):
+#  0 - OK
+#  1 - could not compress (compress command not found)
+#  2 - could not compress (compress command returned error)
+# 11 - ORACLE_SID not set, no export done
+# 12 - export directory (specified w/ \$DIRECTORY or -d switch) does not exist
+# 13 - the "exp" tool could not be found in the PATH
+# 14 - the "exp" command aborted with an error
+###############################################################################
+# $Id: ExportOracleDB 454 2007-10-08 14:04:50Z  $
+
+#=======================================================[ Default settings ]===
+BUFFER=7777777
+COMPRESS=N
+CONSISTENT=Y
+DIRECTORY="/local/database/export"
+FILE="${ORACLE_SID}-`date +%y-%m-%d`.dmp"
+LOG="${ORACLE_SID}-`date +%y-%m-%d`.log"
+STATISTICS="NONE"
+FULL=Y
+DRYRUN=0
+ZIP=gzip
+
+#===========================================================[ Display Help ]===
+function help {
+  echo
+  echo "Usage:"
+  echo "  $0 [options]"
+  echo "Valid options:"
+  echo "  -b <Buffer_size> (default: ${BUFFER})"
+  echo "  -c <Consistent>  (default: ${CONSISTENT})"
+  echo "  -d <Directory>   (default: ${DIRECTORY})"
+  echo "                   Where to store dump+log"
+  echo "  -f <dump_File>   (default: ${FILE})"
+  echo "  -h, --help       display this help"
+  echo "  -l <Log_file>    (default: ${LOG})"
+  echo "  -o <OracleSID>   (default: \$ORACLE_SID)"
+  echo "  -p <comPress>    (default: ${COMPRESS})"
+  echo "  -s <Statistics>  (default: ${STATISTICS})"
+  echo "  -u <User/Pass>   (default: \$ORACLE_USERID)"
+  echo "  -z <ZipCmd>      (default: ${ZIP})"
+  echo "                   valid values: gzip, bzip2, none"
+  echo "  --dryrun         just display what would be done"
+  echo "If no ORACLE_USERID is specified, EXP will prompt for it."
+  echo
+  exit
+}
+
+#=============================================[ Parse command line options ]===
+while [ "$1" != "" ] ; do
+  case "$1" in
+    -b) shift; BUFFER=$1;;
+    -c) shift; CONSISTENT=$1;;
+    -d) shift; DIRECTORY=$1;;
+    -f) shift; FILE=$1;;
+    -h|--help|/?|?) help;;
+    -l) shift; LOG=$1;;
+    -o) shift; ORACLE_SID=$1;;
+    -p) shift; COMPRESS=$1;;
+    -s) shift; STATISTICS=$1;;
+    -u) shift; ORACLE_USERID=$1;;
+    -z) shift; ZIP=$1;;
+    --dryrun) DRYRUN=1
+  esac
+  shift
+done
+
+#================================================[ Execute/Display command ]===
+# run_cmd <command> [ error_message_on_fail [ error_level_to_exit_on_fail ] ]
+function run_cmd {
+  if [ $DRYRUN -gt 0 ]; then
+    echo $1
+  else
+    eval $1
+    [ $? -gt 0 ] && {
+      if [ -n "$2" ]; then
+        echo $2
+        [ -n "$3" ] && exit $3
+      fi
+    }
+  fi
+}
+
+#================================================[ Check if we can run EXP ]===
+if [ -z ${ORACLE_SID} ]; then
+	echo "Environment ORACLE_SID muss gesetzt sein"
+	echo "Beispiel: export ORACLE_SID=dbsin"
+	exit 11
+fi
+if [ ! -d $DIRECTORY ]; then
+	echo "Backup directory ($DIRECTORY) does not exist, aborted."
+	exit 12
+fi
+if [ -z "`which exp`" ]; then
+	echo "the EXP tool cannot be found in your PATH - Sorry..."
+	exit 13
+fi
+
+#============================================================[ Do the job! ]===
+#--------------------------------------------[ Prepare and run EXP command ]---
+CMD="exp"
+[ -n "${ORACLE_USERID}" ] && CMD="$CMD $ORACLE_USERID"
+CMD="${CMD} BUFFER=${BUFFER} COMPRESS=${COMPRESS} CONSISTENT=${CONSISTENT} STATISTICS=${STATISTICS} FULL=${FULL} FILE=${DIRECTORY}/${FILE} LOG=${DIRECTORY}/${LOG}"
+
+run_cmd "$CMD" "Export failed!" 14
+
+#------------------------------------------------------[ Compress the dump ]---
+cd ${DIRECTORY}
+case "$ZIP" in
+  gzip)  run_cmd "gzip -9 ${FILE}" "Compress failed" 2;;
+  bzip2) "bzip2 -9 ${FILE}" "Compress failed" 2;;
+  none) ;;
+  *) echo "Invalid compression utility specified - cannot compress, sorry."
+     exit 1;;
+esac
+cd -

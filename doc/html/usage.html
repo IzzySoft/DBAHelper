@@ -377,6 +377,103 @@
 	   anything - these questions are suppressed by this option, so use with care.</td></tr>
   </table>
  </td></tr>
+
+ <tr><td colspan="2"><hr></td></tr>
+
+ <tr><th class="th_sub"><a name="exp"></a>ExportOracleDB</th></tr>
+ <tr><td class="text">
+  <p><code>ExportOracleDB</code> is another stand-alone script. For now, its
+     only intention is to make a fast full export of a given database and
+     optionally compress it. In the future, it may be extended for some more
+     options.
+  </p><p>
+     Basically it does nothing else than you could do also with a "parfile":
+     It runs EXP with some pre-configured values (which you can override on the
+     command line), and then optionally compresses the resulting dump file.
+     Decide yourself which way seems better to you - you are free to use the
+     one or the other.
+  </p><p>
+     Still here? Hm, looks like you want to give the script a try. So here is
+     its syntax:</p>
+     <div align="center"><div class="code" style="width:18em">
+       ./ExportOracleDB [options]
+     </div></div><p>
+     where the options are:</p>
+ </td></tr>
+ <tr><td class="text">
+  <table align="center" width="95%">
+   <tr><th class="th_sub2">Option</th><th class="th_sub2">Description</th></tr>
+   <tr><td class="td_name"><code>-b &lt;buffer_size&gt;</code></td>
+       <td class="text">Use a different size for BUFFER. Values must be integer.</td></tr>
+   <tr><td class="td_name" nowrap><code>-c &lt;Consistency&gt;</code></td>
+       <td class="text">Different value for CONSISTENT. Only values: Y or N</td></tr>
+   <tr><td class="td_name"><code>-d &lt;Directory&gt;</code></td>
+       <td class="text">Directory where the export (and log) files go to. Must
+           point to an existing directory, or the script will fail.</td></tr>
+   <tr><td class="td_name"><code>-f &lt;file&gt;</code></td>
+       <td class="text">Name of the resulting dump file (will be appended to
+           the directory configured or passed on the command line)</td></tr>
+   <tr><td class="td_name"><code>-h, --help</code></td>
+       <td class="text">Display help screen</td></tr>
+   <tr><td class="td_name"><code>-l &lt;Logfile&gt;</code></td>
+       <td class="text">alternative name for the log file to be created (will
+           be appended to the directory specified)</td></tr>
+   <tr><td class="td_name"><code>-o &lt;ORACLE_SID&gt;</code></td>
+       <td class="text">alternative ORACLE_SID (to the one in the environment)
+           to specify the database to export from</td></tr>
+   <tr><td class="td_name"><code>-p &lt;comPress&gt;</code></td>
+       <td class="text">Alternate setting for COMPRESS. While EXPs default is
+           "Y" (use segment compression), the script defaults to "N". Which
+	   you can of course change in the script itself.</td></tr>
+   <tr><td class="td_name"><code>-s &lt;Statistics&gt;</code></td>
+       <td class="text">Value for the STATISTICS parameter. While defaulting to
+           "estimate" in the EXP utility, the script defaults to "none",
+	   switching the statistics off - in most cases they have not been
+	   useful, and since export/import implicitely optimizes your data,
+	   you would either need to re-generate them...</td></tr>
+   <tr><td class="td_name"><code>-u &lt;User/Pass&gt;</code></td>
+       <td class="text">Override the ORACLE_USERID (if it's set at all). If
+           there's no User/Password specified, EXP will ask for it on the
+	   command line prompt.</td></tr>
+   <tr><td class="td_name"><code>-z &lt;ZipCmd&gt;</code></td>
+       <td class="text">compression program to use. At the moment, the script
+           only understands "gzip", "bzip2" or "none" - the latter switches
+	   off compression</td></tr>
+   <tr><td class="td_name"><code>--dryrun</code></td>
+       <td class="text">Just print out what would be done - but don't really
+           execute anything.</td></tr>
+  </table>
+ <tr><th class="th_sub2" colspan="2">Exit Codes</th></tr>
+ <tr><td class="text">
+  <p><code>ExportOracleDB</code> defines a couple of exit codes you can check
+     when running it from other scripts. The basic rule is: As long as the
+     exit code is less than 10, nothing is in danger (i.e. the export was done,
+     just some other weird things appeared). Details are listed in the following
+     table:
+  </p></td></tr>
+ <tr><td>
+  <table align="center" width="95%">
+   <tr><th class="th_sub2">Exit Code</th><th class="th_sub2">Description</th></tr>
+   <tr><td class="td_name"><code>0</code></td>
+       <td class="text">Everything is very fine</td></tr>
+   <tr><td class="td_name"><code>1</code></td>
+       <td class="text">Could not compress the dump file - the specified
+           compression utility was not found</td></tr>
+   <tr><td class="td_name"><code>2</code></td>
+       <td class="text">Could not compress the dump file - the compress command
+           threw an error</td></tr>
+   <tr><td class="td_name"><code>11</code></td>
+       <td class="text">There was no ORACLE_SID specified, so no export could be done</td></tr>
+   <tr><td class="td_name"><code>12</code></td>
+       <td class="text">The specified directory to save the files to does not exist
+           (again, no backup done)</td></tr>
+   <tr><td class="td_name"><code>13</code></td>
+       <td class="text">The EXP utility was not found in the PATH - no export done</td></tr>
+   <tr><td class="td_name"><code>14</code></td>
+       <td class="text">The EXP utility threw an error - the dump file may have errors
+           (no file compression done after that error occured)</td></tr>
+  </table>
+ </td></tr>
 </table>
 
 </body>
