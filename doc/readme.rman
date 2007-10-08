@@ -5,33 +5,58 @@ This is not a complete documentation (yet), but just to clarify some important
 issues.
 
 rman.sh force_cleanup
----------------------
+=====================
 
 This command should be used carefully, since it has not yet been tested
 thorougly. It is only needed if you are affected by a couple of Oracle bugs,
 described in Oracle MetaLink documents notes 4348860.1, 314217.1, 315098.1,
 305812.1, 289653.1 as well as bugs 5073511 and 5106952. As you can see: Quite
 a lot of documents. The latest of them claim the problems have been solved
-with Oracle 10g R2 (at least 10.2.0.3) - but I cannot confirm this, I still
-found the bugs existing with this version.
+with Oracle 10g R2 (at least 10.2.0.3) - but little configuration mistakes
+(as e.g. the forgotten UNTIL TIME parameter in the daily backup) still keep
+the problems there.
+
+More references: MetaLink notes 280709.1, 280709.1, 413265.1 and bugs 6459358
+plus 5755472 deal with similiar topics and possible work-arounds.
+
+More safe solution: Check your configuration - most likely number 4) from the
+problem description below applies, which is easy to fix. If you urgently need
+to free disk space, better play with your retention policy (setting it to
+"REDUNDANCY 1" for sure will purge things, "RECOVERY WINDOW OF 1 DAY" should
+also do. "rman.sh force_cleanup" should only be used as last ressort (e.g. if
+you have no time left to play around with the options), and you use it at your
+own risk!!! It seems to work fine with Oracle 10.2 - but there's no guarantee,
+for sure not for other Oracle versions.
 
 Problem description:
+--------------------
 
 1) You set up your Oracle database instance using the FRA (flash recovery
    area) as (only) log archive destination (so all your archived logs will be
    sent there by the DB)
 2) Your backup strategy involves incremental backups
 3) Your retention policy is set to use a recovery window
+4) And/or your backup command uses "RECOVER COPY OF DATABASE" without the "UNTIL
+   TIME" parameter
 
 Usually, Oracle should take care for the size of the FRA, deleting obsolete
 files when the configured db_recovery_file_dest_size is reached. While this
 seem to work fine for control file auto backups and full backups, at least
 under the above conditions Oracle completely forgets about the archived redo
-logs as well as the cumulative backups. As a result, sooner or later the
-db_recovery_file_dest_size will be exceeded - which means, further backups
-will fail. But don't worry about that, you either won't need them - because
-short after that the whole database instance will come to a stand-still, since
-it cannot archive any redo log anymore for the same reason.
+logs as well as the cumulative backups.
+
+The reason is quite easy, when problem cause 4) is involved: Without the "UNTIL
+TIME" parameter, Oracle always assumes "SYSDATE -1". This means, you never have
+any full backup older than 1 day - so your retention policy is never met. Hence
+Oracle waits forever to meet the condition. It cannot delete anything, since it
+does not know what other full backup may exist somewhere else to which some of
+your data may be applied.
+
+As a result, sooner or later the db_recovery_file_dest_size will be exceeded -
+which means, further backups will fail. But don't worry about that, you either
+won't need them - because short after that the whole database instance will
+come to a stand-still, since it cannot archive any redo log anymore for the
+same reason.
 
 There are a couple of work arounds possible:
 - Don't sent the archived logs directly to the FRA. Rather store them somewhere
@@ -39,15 +64,25 @@ There are a couple of work arounds possible:
   "BACKUP ARCHIVE LOG ALL DELETE INPUT"
 - Don't use cumulative backups - or chose a different retention policy than
   "recovery window". Recommended is "redundancy 1" - great, yeah?
+- If you run Oracle < 10.2.0.3: Update to this version
+- If you run Oracle 10.2.0.3 or above: Check (and fix) your RMAN configuration
+  (may work for other versions as well ;)
 
-Not happy with this? Neither we are. So here comes the work-around provided by
-the rman.sh script:
-Using the force_cleanup command, the tool retrieves a list of all available
-backups, and parses it for the first full backup and all preceding (and thus
-orphaned) cumulative backups. It presents the results, and leaves you the
-choice to delete the orphans.
-In the next step, it queries the V$BACKUP_PIECE_DETAILS for the start time of
-the reported first full backup, and then tells RMAN to delete all archived logs
-which *completed* *before* the last full backup was started.
+
+What "rman.sh force_cleanup" does
+---------------------------------
+
+Not happy with above work arounds 1-3? Neither we are. So if number 4 doesn't
+do the trick (or you are in a hurry to free disk space), here comes the work
+around provided by "rman.sh force_cleanup":
+- Issuing a "LIST COPY OF DATABASE" to check whether there is a full backup
+  available (exits if not)
+- Check V$BACKUP_PIECE_DETAILS for details on the full backup (key, completion
+  time)
+- Run "LIST BACKUP SUMMARY" and parse the output for backups older than our
+  full backup (bs_key smaller than that), presenting the result and, if the
+  user confirms, deleting these obsolete files
+- After another confirmation, all archived log files completed before our
+  full backup was started will be deleted
 
 Should be safe so far - but still, use it on your own risk :)
