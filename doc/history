@@ -3,7 +3,7 @@ $Id$
 History for DBAHelper
 =====================
 
-v0.2.1
+v0.2.1 (21.10.2007)
 -------------------
 ! fixed configuration issue with backup_daily (UNTIL TIME parameter was missing)
 ! force_clean was incorrect
