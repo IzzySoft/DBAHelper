@@ -1,0 +1,118 @@
+#!/bin/bash
+# $Id
+#==============================================================================
+# Run an SQL Tuning Advisor Task and display results (Oracle 10g)
+#------------------------------------------------------------------------------
+# Parameters needed:
+#   $1 - schema for the statement
+#   $2 - statement to tune
+# Parameters optional:
+#   $3 - Unique name (Default: Set up from time+PID, YYYYMMDDHHMISS$PID)
+#------------------------------------------------------------------------------
+# Examples:
+#   ./sqltune perfstat "select count(*) from stats$snapshot"
+#   ./sqltune perfstat "select count(*) from stats$snapshot" "my_snap"
+#------------------------------------------------------------------------------
+# Results are displayed on the screen and written to <UniqueName>.out
+#==============================================================================
+
+#==================================================================[ Setup ]===
+#-----------------------------------------------------------------[ Colors ]---
+red='\e[0;31m'
+blue='\e[0;34m'
+NC='\e[0m'              # No Color
+
+#===========================================================[ helper funcs ]===
+function syntax {
+  echo "Syntax: $0 <Schema> <Statement> [UniqueName]"
+  exit
+}
+
+function intro {
+  echo -e "${blue}SQLAdvicer...$NC"
+}
+
+function get_pwd {
+  echo -n "Enter password for $schema: "
+  read -s pwd1
+  echo
+  echo -n "Repeat password: "
+  read -s pwd2
+  echo
+  [ "$pwd1" != "$pwd2" ] && {
+    echo -e "${red}Sorry, but the strings do not match. Please repeat.$NC"
+    get_pwd
+  }
+}
+
+#=========================================================[ Get parameters ]===
+intro
+# -= Check for UniqueName =-
+if [ -n "$3" ]; then
+  name="$3"
+else
+  name=`date +"%Y%m%d%H%M%S$$"`
+fi
+# -= Check required parameter =-
+[ -z "$2" ] && syntax
+[ -z "$1" ] && syntax
+
+schema="`echo $1 | tr [:lower:] [:upper:]`"
+statement="$2"
+# -= Replace single quotes by 2 single quotes in the statement
+statement_pl=`echo $statement|sed 's/'\''/'\'''\''/g'`
+
+get_pwd
+
+#=============================================================[ Execute it ]===
+echo -e "${blue}Analyzing statement on schema '$schema' with the name '$name':"
+echo -e "$statement$NC"
+echo
+
+$ORACLE_HOME/bin/sqlplus -s / as sysdba<<EOF
+SET FEEDBACK OFF TERMOUT OFF SQLPROMPT '' SQLN OFF
+SPOOL $name.out
+
+-- Advisory
+DECLARE
+  my_task_name varchar2(30);
+  my_sqltext clob;
+BEGIN
+--  my_sqltext := 'update /* index(plz_wetter PK_plz_wetter) */ plz_wetter set VALUE = :p1,INSERTDTG = TO_TIMESTAMP(:p2,''yyyy-mm-dd hh24:mi:ss'') where ID_STAT=:p3 and ID_PARAMETER = :p4 and DTG = TO_TIMESTAMP(:p5,''YY-MM-DD-HH24:MI:SS'')';
+  my_sqltext := '$statement_pl';
+  my_task_name := dbms_sqltune.create_tuning_task(
+    sql_text => my_sqltext
+   ,user_name => '$schema'
+   ,scope => 'COMPREHENSIVE'
+   ,time_limit => 60
+   ,task_name => '$name'
+   ,description => 'Tuning Task');
+  dbms_sqltune.execute_tuning_task(task_name => '$name');
+END;
+/
+
+--exec sys.dbms_lock.sleep(120);
+
+set long 1000
+set longchunksize 1000
+set linesize 100
+prompt 
+SELECT dbms_sqltune.report_tuning_task('$name') FROM dual;
+
+-- Execution Plan
+CONN $schema/$pwd1
+SET FEEDBACK OFF TERMOUT OFF SQLPROMPT '' SQLN OFF
+DELETE FROM plan_table;
+-- WHERE statement_id = '$name';
+EXPLAIN PLAN
+  SET statement_id = '$name'
+  FOR $statement;
+prompt 
+set head on pages 50 feedback on
+SELECT LPAD(' ',2*level)||operation||' '||options||' '||object_name query_plan
+  FROM plan_table
+  WHERE statement_id = '$name'
+  CONNECT BY PRIOR id = parent_id AND statement_id = '$name'
+  START WITH id = 1;
+
+SPOOL OFF
