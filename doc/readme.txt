@@ -71,6 +71,7 @@ without any argument, so they will show it.
   lazywaste.sh         | Show resources wasted by "lazy" sessions
   tabmove.sh           | Moves tables from one tablespace to another
   tabreorg.sh          | Reorganizes fragmented tables (chained rows)
+  undo_used.sh         | list up undo records used by current processes
   rman/rman.sh         | Wrapper to rman
 
 All scripts run via Sql*Plus and use its SPOOL command to log their activities.
