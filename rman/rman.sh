@@ -32,7 +32,7 @@ function help {
   SCRIPT=${0##*/}
   echo
   echo "============================================================================"
-  echo "RMAN wrapper                 (c) 2007 by Itzchak Rehberg (devel@izzysoft.de)"
+  echo "RMAN wrapper            (c) 2007-2008 by Itzchak Rehberg (devel@izzysoft.de)"
   echo "----------------------------------------------------------------------------"
   echo This script is intended to generate a HTML report for the Oracle StatsPack
   echo collected statistics. Look inside the script header for closer details, and
@@ -45,6 +45,7 @@ function help {
   echo "     cleanup_expired	Cleanup non existing files from catalog/controlfile"
   echo "     cleanup_obsolete	Cleanup outdated files from disk and"
   echo "			catalog/controlfile"
+  echo "     create_standby     Create a standby database from a running instance"
   echo "     crosscheck         Validates backup availability and integrity"
   echo -e "     force_clean	Clean pseudo-orphans. ${red}USE WITH CARE! *$NC"
   echo "     recover		Fast Recover database (if possible)"
@@ -209,14 +210,121 @@ fi
 runconfig $CONFIGOPTS
 
 #==============================================================[ Say Hello ]===
+header
 case "$CMD" in
+  create_standby)
+    # Introductional information
+    say "${blue}In order to create a standby database, we first need some data."
+    say "Please make sure that:"
+    echo
+    say "- you run this script on the host of your PRIMARY database"
+    say "- your primary database is up and running (opened or mounted)"
+    say "- on the host of your standby database, ALL necessary directories"
+    say "  (for datafiles, logs, etc) are created and have the correct permissions"
+    say "- either the directory structure is the same on both databases,"
+    say "  or you took care for the changed names in your init.ora file"
+    say "  (DB_FILE_NAME_CONVERT, LOG_FILE_NAME_CONVERT). In the latter case,"
+    say "  please remove the 'NOFILENAMECHECK' option from the copy command"
+    say "  in the rman.create_standby file."
+    say "- you checked the _DEST and _PATH statements in the init.ora file"
+    say "  of both databases (at this time, most important on the standby)"
+    echo
+    echo -en "Are this conditions ALL met (y/n)? $NC"
+    yesno
+    stayorgo
+    # Forced Logging
+    say "${blue}In order to protect direct writes, which are unlogged and thus would not"
+    say "be propagated to the standby database, you need to have forced logging enabled"
+    echo -en "on the master (primary) database. Shall we do this now (y/n)? $NC"
+    yesno
+    [ "$res" = "y" ] && {
+      echo "ALTER DATABASE FORCE LOGGING;">$TMPFILE.sql
+      runcmd "sqlplus / as sysdba <$TMPFILE.sql" | tee -a "$LOGFILE"
+      rm -f $TMPFILE.sql
+    }
+    echo
+    # Make sure we have all backups + controlfile available
+    say "${blue}Did you create the control file for the standby database (y/n)?"
+    echo -en "(If you are not sure, you did not) $NC"
+    yesno
+    [ "$res" = "n" ] && {
+      say "${blue}So we create the control file now:$NC"
+      echo "BACKUP CURRENT CONTROLFILE FOR STANDBY;">$TMPFILE
+      $RMANCONN <$TMPFILE | tee -a "$LOGFILE"
+      [ $? -ne 0 ] && {
+        say "${red}Some error occured creating the standby controlfile - aborting.$NC"
+        exit 1
+      }
+    }
+    echo -en "${blue}We also need a full database backup. You want to create one now (y/n)? $NC"
+    yesno
+    [ "$res" = "y" ] && {
+      $0 backup_daily
+      say "${blue}If the backup was made successfully, we can continue creating the"
+      say "Standby Database. If there have been errors (ignore the"
+      say "'RMAN-20207: UNTIL TIME or RECOVERY WINDOW is before RESETLOGS time' on a"
+      say "database you just created within that time), this is the time to abort."
+      echo -en "Continue (y/n)? "
+      yesno
+      stayorgo
+    } || echo
+    # Last hints about availability master/client (mount/nomount)
+    say "${blue}Now, please make sure that:"
+    say "- you started the (not yet existing) standby database NOMOUNT using the"
+    say "  adjusted init.ora"
+    say "- the backup files are LOCALLY available on the standby machine (you may"
+    say "  need to copy them there)"
+    say "- you can reach your standby database from the primary host via"
+    say "  Oracle Net (configured in tnsnames.ora / Oracle Names / ...)"
+    echo
+    echo -en "Are this conditions ALL met (y/n)? $NC"
+    yesno
+    stayorgo
+    # Query standby data from user
+    say "${blue}Please specify the standby database:$NC"
+    read -p "TNS name       : " tnsname
+    read -s -p "SYS password   : " syspwd
+    echo
+    read -s -p "Repeat password: " syspwd2
+    echo
+    [ "$syspwd" != "$syspwd2" ] && {
+      say "${red}The entered passwords are not identical - aborting!$NC"
+      exit 1
+    }
+    # Test Oracle Net for specified standby tns name
+    dummy=`tnsping $tnsname`
+    [ $? -ne 0 ] && {
+      say "${red}The specified database is not available via Oracle Net - aborting!$NC"
+      exit 1
+    }
+    # Creating the standby database
+    say "${blue}Creating the standby database now...$NC"
+    RMANCONN="$RMANCONN auxiliary sys/$syspwd@$tnsname"
+    runcmd "$RMANCONN < $BINDIR/rman.$CMD" | tee -a "$LOGFILE"
+    # Final notes
+    say "${blue}If there have been no errors displayed: Congratulations, your new standby"
+    say "database should be ready! However, there is some work left to you (and to your"
+    say "decision):"
+    say "- you need to start managed recovery on the standby database"
+    say "- you need to make sure that this step is done automatically on server start"
+    say "- you should make sure that the master is feeding your standby with redo"
+    say
+    # Optionally start managed recovery
+    echo -en "Do you want to start managed recovery on the standby DB now (y/n)? $NC"
+    yesno
+    [ "$res" = "y" ] && {
+      echo "ALTER DATABASE RECOVER MANAGED STANDBY DATABASE DISCONNECT;">$TMPFILE.sql
+      runcmd "sqlplus sys/$syspwd@$tnsname as sysdba <$TMPFILE.sql" | tee -a "$LOGFILE"
+      rm -f $TMPFILE.sql
+    }
+    echo
+    finito
+    ;;
   backup_daily|validate|crosscheck)
-    header
-    runcmd "${RMANCONN} < $TMPFILE | tee -a $LOGFILE" "$TMPFILE"
+    runcmd "${RMANCONN} < $TMPFILE | tee -a $LOGFILE"
     ;;
   cleanup_expired)
-    header
-    runcmd "${RMANCONN} < $TMPFILE | tee -a $LOGFILE" "$TMPFILE"
+    runcmd "${RMANCONN} < $TMPFILE | tee -a $LOGFILE"
     say "${blue}The long list on top shows the process of crosschecking. At the end of the"
     say "crosscheck, tables are displayed listing the expired objects, i.e. those are no"
     say "longer available on the disks, but still in the catalog/controlfile. To keep the"
@@ -236,7 +344,6 @@ case "$CMD" in
     finito
     ;;
   cleanup_obsolete)
-    header
     say "${blue}Going to list obsolete files:$NC"
     runcmd "${RMANCONN} < $TMPFILE | tee -a $LOGFILE" "$TMPFILE"
     say "${blue}Above tables list the obsolete files - i.e. those which are outdated"
@@ -256,7 +363,6 @@ case "$CMD" in
     finito
     ;;
   block_recover)
-    header
     say "${blue}* You asked for a block recovery. Please provide the required data"
     say "  (you probably find them either in the application which alerted you about"
     say "  the problem, or at least in the alert log. Look out for a message like$NC"
@@ -270,13 +376,12 @@ case "$CMD" in
     stayorgo
     echo "BLOCKRECOVER DATAFILE $fileno BLOCK $blockno;" > $TMPFILE
     echo exit >> $TMPFILE
-    runcmd "${RMANCONN} < $TMPFILE | tee -a $LOGFILE" "$TMPFILE"
+    runcmd "${RMANCONN} < $TMPFILE | tee -a $LOGFILE"
     finito
     ;;
   recover)
-    header
     say "${blue}* Test whether a fast recovery is possible:$NC"
-    runcmd "${RMANCONN} < $TMPFILE | tee -a $LOGFILE" "$TMPFILE"
+    runcmd "${RMANCONN} < $TMPFILE | tee -a $LOGFILE"
     say "${blue}Please check above output for errors. A line like$NC"
     say "  ORA-01124: cannot recover data file 1 - file is in use or recovery"
     say "${blue}means the database is still up and running, and you rather should check"
@@ -290,13 +395,12 @@ case "$CMD" in
     cat $BINDIR/rman.${CMD}_doit >$TMPFILE
     echo exit >> $TMPFILE
     echo -e "${red}${blink}Running the recover process - don't interrupt now!$NC"
-    runcmd "${RMANCONN} < $TMPFILE | tee -a $LOGFILE" "$TMPFILE"
+    runcmd "${RMANCONN} < $TMPFILE | tee -a $LOGFILE"
     finito
     ;;
   restore_full)
-    header
     say "${blue}* Verify backup and show what WOULD be done:$NC"
-    runcmd "${RMANCONN} < $TMPFILE | tee -a $LOGFILE" "$TMPFILE"
+    runcmd "${RMANCONN} < $TMPFILE | tee -a $LOGFILE"
     echo -en "${blue}Above actions will be taken if you continue. Are you sure (y/n)?$NC "
     yesno
     stayorgo
@@ -311,11 +415,10 @@ case "$CMD" in
     cat $BINDIR/rman.${CMD}_doit >$TMPFILE
     echo exit >> $TMPFILE
     echo -e "${red}${blink}Running the restore - don't interrupt now!$NC"
-    runcmd "${RMANCONN} < $TMPFILE | tee -a $LOGFILE" "$TMPFILE"
+    runcmd "${RMANCONN} < $TMPFILE | tee -a $LOGFILE"
     finito
     ;;
   restore_ts)
-    header
     say "${blue}* Verify backup and show what WOULD be done:$NC"
     read -p "Specify the tablespace to restore: " tsname
     echo -en "${blue}About to restore/recover tablespace '$tsname'. Is this OK (y/n)? $NC"
@@ -336,11 +439,10 @@ case "$CMD" in
     echo "SQL 'ALTER TABLESPACE $tsname ONLINE';">>$TMPFILE
     echo "exit">>$TMPFILE
     echo -e "${red}${blink}Running the restore - don't interrupt now!$NC"
-    runcmd "${RMANCONN} < $TMPFILE | tee -a $LOGFILE" "$TMPFILE"
+    runcmd "${RMANCONN} < $TMPFILE | tee -a $LOGFILE"
     finito
     ;;
   restore_temp)
-    header
     echo -en "${blue}You are going to recreate the lost TEMP tablespace. Is that correct (y/n)?$NC "
     yesno
     stayorgo
@@ -367,7 +469,6 @@ case "$CMD" in
     finito
     ;;
   force_clean)
-    header
     say "${blue}Checking for obsolete level x backups (not having a parent full backup):$NC"
     say "${blue}* Obtaining info about oldest available full backup...$NC"
     #
@@ -469,7 +570,7 @@ case "$CMD" in
           [ $purgeit -eq 1 ] && echo "DELETE NOPROMPT BACKUPSET ${obskey[$idx]};" >> $TMPFILE
           let idx=$idx+1
         done
-        runcmd "${RMANCONN} < $TMPFILE | tee -a $LOGFILE" "$TMPFILE"
+        runcmd "${RMANCONN} < $TMPFILE | tee -a $LOGFILE"
       else
         say "${blue}* Skipping removal of orphaned backups.$NC"
       fi

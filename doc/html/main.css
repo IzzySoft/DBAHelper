@@ -1,4 +1,7 @@
-BODY { background-color:#7777FF; }
+BODY {
+ background-color:#7777FF;
+ font-family:sans-serif;
+}
 P { text-align:justified; }
 H2 {
  text-align:center;
@@ -17,7 +20,10 @@ TH {
  text-align:center;
  background-color:#FFD000;
 }
-TD { font-size:80%; }
+TD {
+ font-size:80%;
+ font-face:sans-serif;
+}
 TD.small { font-size:70%; }
 TD.smallname {
  font-size:70%;
