@@ -55,7 +55,7 @@ else
 fi
 
 # ====================================================[ Script starts here ]===
-version='0.1.6'
+version='0.1.7'
 #cat >dummy.out<<EOF
 $ORACLE_HOME/bin/sqlplus -s /NOLOG <<EOF
 
@@ -77,12 +77,16 @@ DECLARE
  TIMESTAMP VARCHAR2(20);
  VERSION VARCHAR2(20);
  LOGALL NUMBER;
+ height        index_stats.height%TYPE := 0;
+ lf_rows       index_stats.lf_rows%TYPE := 0;
+ del_lf_rows   index_stats.del_lf_rows%TYPE := 0;
+ distinct_keys index_stats.distinct_keys%TYPE := 0;
  CURSOR cur IS
   SELECT owner,table_name
     FROM all_tables
    WHERE owner=UPPER('$SCHEMA');
  CURSOR icur IS
-  SELECT owner,index_name
+  SELECT owner,index_name,index_type,table_name
     FROM all_indexes
    WHERE owner=UPPER('$SCHEMA');
  CURSOR res IS
@@ -128,7 +132,7 @@ BEGIN
  END IF;
   SELECT TO_CHAR(SYSDATE,'YYYY-MM-DD HH24:MI:SS') INTO TIMESTAMP FROM DUAL;
   L_LINE := CHR(10)||'* '||TIMESTAMP||
-            ' Analyzing $OBJECTTYPE objects on $SCHEMA...';
+            ' Analyzing $OBJECTTYPE objects on $SCHEMA...'||CHR(10);
   dbms_output.put_line(L_LINE);
   IF antab = 1 THEN
     IF analyze = 1 THEN
@@ -154,29 +158,54 @@ BEGIN
     dbms_output.put_line(CHR(10));
   END IF;
   IF anidx = 1 THEN
-    FOR rec IN icur LOOP
-      statement := 'ANALYZE INDEX "'||rec.owner||'"."'||rec.index_name||'" COMPUTE STATISTICS';
-      IF LOGALL = 1 THEN
-        SELECT TO_CHAR(SYSDATE,'YYYY-MM-DD HH24:MI:SS') INTO TIMESTAMP FROM DUAL;
-        dbms_output.put_line('+ '||TIMESTAMP||' '||statement);
-      END IF;
-      anobj(statement,'index',rec.owner||'.'||rec.index_name);
-    END LOOP;
-    L_LINE := 'Considered a BLevel > 2 or a Clustering_Factor closer to the tables row count'||CHR(10)
-           || 'than to the tables block count as indicators, these are possible Rebuild'||CHR(10)
-           || 'candidates in the schema of ''$SCHEMA'':'||CHR(10);
-    dbms_output.put_line(L_LINE);
-    dbms_output.put_line( '+--------------------------------+------+-------------+-----------+-----------+' );
-    dbms_output.put_line( '| Index                          | BLev | ClustFactor |  TabRows  | TabBlocks |' );
-    dbms_output.put_line( '+--------------------------------+------+-------------+-----------+-----------+' );
-    FOR rec IN ires LOOP
-      L_LINE := '| '||RPAD(rec.index_name,30)||' | '||LPAD(rec.blevel,4)||' | '
-             || LPAD(TRIM(TO_CHAR(rec.clustering_factor,'999,999,990')),11)||' | '
-	     || LPAD(TRIM(TO_CHAR(rec.num_rows,'9,999,990')),9)||' | '
-	     || LPAD(TRIM(TO_CHAR(rec.blocks,'9,999,990')),9)||' |';
+    IF analyze = 1 THEN
+      dbms_output.put_line('Following indexes may need some investigation: If deleted entries are > 20%, or');
+      dbms_output.put_line('the BLevel exceeds a value of 4, this is a possible rebuild candidate. If the');
+      dbms_output.put_line('amount of distinct keys falls below 10%, you may consider making this a bitmap');
+      dbms_output.put_line('index:'||CHR(10));
+      dbms_output.put_line('+------------------------------+----------------+---------+------+------------+');
+      dbms_output.put_line('|          Index Name          |   Index Type   |  % Del  | BLev | % Distinct |');
+      dbms_output.put_line('+------------------------------+----------------+---------+------+------------+');
+      FOR rec IN icur LOOP
+        statement := 'ANALYZE INDEX "'||rec.owner||'"."'||rec.index_name||'" VALIDATE STRUCTURE';
+        IF LOGALL = 1 THEN
+          SELECT TO_CHAR(SYSDATE,'YYYY-MM-DD HH24:MI:SS') INTO TIMESTAMP FROM DUAL;
+          dbms_output.put_line('+ '||TIMESTAMP||' '||statement);
+        END IF;
+        anobj(statement,'index',rec.owner||'.'||rec.index_name);
+	SELECT height, DECODE (lf_rows,0,1,lf_rows), del_lf_rows, 
+               DECODE (distinct_keys,0,1,distinct_keys) 
+          INTO height, lf_rows, del_lf_rows, distinct_keys
+          FROM index_stats;
+        IF ( height > 5 ) OR ( (del_lf_rows/lf_rows) > 0.2 ) THEN
+	  L_LINE := '| '||RPAD(TRIM(SUBSTR(rec.index_name,1,28)),28)
+	         ||' | '||RPAD(TRIM(SUBSTR(rec.index_type,1,14)),14)
+	         ||' | '||LPAD(TRIM(TO_CHAR((del_lf_rows/lf_rows)*100,'990.99')),7)
+		 ||' | '||LPAD(TRIM(height),4)
+		 ||' | '||LPAD(TRIM(TO_CHAR(100-(lf_rows-distinct_keys)*100/lf_rows,'990.99')),10)||' |';
+	  dbms_output.put_line(L_LINE);
+	END IF;
+      END LOOP;
+      dbms_output.put_line('+------------------------------+----------------+---------+------+------------+');
+    ELSE
+      L_LINE := 'The following list is more like a guess - for more accurate results, run the'||CHR(10)
+             || 'script without the "--noanalyze" option (and "analyze=1" in the head).'||CHR(10)
+             || 'Considered a BLevel > 2 or a Clustering_Factor closer to the tables row count'||CHR(10)
+             || 'than to the tables block count as indicators, these are possible Rebuild'||CHR(10)
+             || 'candidates in the schema of ''$SCHEMA'':'||CHR(10);
       dbms_output.put_line(L_LINE);
-    END LOOP;
-    dbms_output.put_line( '+--------------------------------+------+-------------+-----------+-----------+' );
+      dbms_output.put_line( '+--------------------------------+------+-------------+-----------+-----------+' );
+      dbms_output.put_line( '| Index                          | BLev | ClustFactor |  TabRows  | TabBlocks |' );
+      dbms_output.put_line( '+--------------------------------+------+-------------+-----------+-----------+' );
+      FOR rec IN ires LOOP
+        L_LINE := '| '||RPAD(rec.index_name,30)||' | '||LPAD(rec.blevel,4)||' | '
+               || LPAD(TRIM(TO_CHAR(rec.clustering_factor,'999,999,990')),11)||' | '
+	       || LPAD(TRIM(TO_CHAR(rec.num_rows,'9,999,990')),9)||' | '
+	       || LPAD(TRIM(TO_CHAR(rec.blocks,'9,999,990')),9)||' |';
+        dbms_output.put_line(L_LINE);
+      END LOOP;
+      dbms_output.put_line( '+--------------------------------+------+-------------+-----------+-----------+' );
+    END IF;
     dbms_output.put_line(CHR(10));
   END IF;
   SELECT TO_CHAR(SYSDATE,'YYYY-MM-DD HH24:MI:SS') INTO TIMESTAMP FROM DUAL;
@@ -188,3 +217,9 @@ EXCEPTION
     dbms_output.put_line('! '||TIMESTAMP||' Analyze v'||VERSION||' crashed normally.');
 END;
 /
+
+EOF
+
+if [ "`echo $OBJECTTYPE|tr [:lower:] [:upper:]`" == "INDEX" ]; then
+  grep '^| [A-Z]' $SPOOL |awk "{print \"ALTER INDEX $SCHEMA.\"\$2\" REBUILD;\"}">${SPOOL}.sql
+fi

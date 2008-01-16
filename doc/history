@@ -10,6 +10,9 @@ v0.2.2
 + rman.sh: Added the create_standby command
 + analobj.sh: Added listing of index rebuild candidates
 + globalconf: Now you can specify an output directory
++ analobj.sh: Added more accurate listing for index rebuild candidates
+  (when run with analyze - the other one runs without analyze, e.g.
+  using the "--noanalyze" command line option)
 
 v0.2.1 (21.10.2007)
 -------------------
