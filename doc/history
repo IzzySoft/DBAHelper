@@ -8,6 +8,7 @@ v0.2.2
 + added the sqltune script (for Oracle 10g)
 + added script to list up undo records used by current processes
 + rman.sh: Added the create_standby command
++ analobj.sh: Added listing of index rebuild candidates
 
 v0.2.1 (21.10.2007)
 -------------------

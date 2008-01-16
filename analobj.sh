@@ -47,12 +47,19 @@ BINDIR=${0%/*}
 CONFIG=$BINDIR/globalconf
 . $BINDIR/configure $* -f analobj
 
+# Setup connect string
+if [ -z "${user}${password}${ORACLE_CONNECT}" ]; then
+  CONN='CONNECT / as sysdba'
+else
+  CONN="CONNECT $user/${password}$ORACLE_CONNECT"
+fi
+
 # ====================================================[ Script starts here ]===
-version='0.1.5'
+version='0.1.6'
 #cat >dummy.out<<EOF
 $ORACLE_HOME/bin/sqlplus -s /NOLOG <<EOF
 
-CONNECT $user/${password}$ORACLE_CONNECT
+$CONN
 Set TERMOUT ON
 Set SCAN OFF
 Set SERVEROUTPUT On Size 1000000
@@ -88,6 +95,14 @@ DECLARE
       AND num_rows  > $NUMROWS
       AND chain_cnt > $CHAINCNT
     ORDER BY table_name;
+ CURSOR ires IS
+   SELECT i.owner,i.index_name,i.blevel,i.clustering_factor,t.num_rows,t.blocks
+     FROM dba_tables t, dba_indexes i
+    WHERE t.owner = UPPER('$SCHEMA')
+      AND t.owner = i.table_owner
+      AND t.table_name = i.table_name
+      AND ( i.blevel > 1 OR i.clustering_factor > (t.num_rows + t.blocks)*2/3 )
+      AND i.leaf_blocks > 1;
  PROCEDURE anobj(statement VARCHAR2, ttype VARCHAR2, tname VARCHAR2) IS
    BEGIN
      EXECUTE IMMEDIATE statement;
@@ -113,7 +128,7 @@ BEGIN
  END IF;
   SELECT TO_CHAR(SYSDATE,'YYYY-MM-DD HH24:MI:SS') INTO TIMESTAMP FROM DUAL;
   L_LINE := CHR(10)||'* '||TIMESTAMP||
-            ' $CALCSTAT statistics for $OBJECTTYPE objects on $SCHEMA...';
+            ' Analyzing $OBJECTTYPE objects on $SCHEMA...';
   dbms_output.put_line(L_LINE);
   IF antab = 1 THEN
     IF analyze = 1 THEN
@@ -147,6 +162,22 @@ BEGIN
       END IF;
       anobj(statement,'index',rec.owner||'.'||rec.index_name);
     END LOOP;
+    L_LINE := 'Considered a BLevel > 2 or a Clustering_Factor closer to the tables row count'||CHR(10)
+           || 'than to the tables block count as indicators, these are possible Rebuild'||CHR(10)
+           || 'candidates in the schema of ''$SCHEMA'':'||CHR(10);
+    dbms_output.put_line(L_LINE);
+    dbms_output.put_line( '+--------------------------------+------+-------------+-----------+-----------+' );
+    dbms_output.put_line( '| Index                          | BLev | ClustFactor |  TabRows  | TabBlocks |' );
+    dbms_output.put_line( '+--------------------------------+------+-------------+-----------+-----------+' );
+    FOR rec IN ires LOOP
+      L_LINE := '| '||RPAD(rec.index_name,30)||' | '||LPAD(rec.blevel,4)||' | '
+             || LPAD(TRIM(TO_CHAR(rec.clustering_factor,'999,999,990')),11)||' | '
+	     || LPAD(TRIM(TO_CHAR(rec.num_rows,'9,999,990')),9)||' | '
+	     || LPAD(TRIM(TO_CHAR(rec.blocks,'9,999,990')),9)||' |';
+      dbms_output.put_line(L_LINE);
+    END LOOP;
+    dbms_output.put_line( '+--------------------------------+------+-------------+-----------+-----------+' );
+    dbms_output.put_line(CHR(10));
   END IF;
   SELECT TO_CHAR(SYSDATE,'YYYY-MM-DD HH24:MI:SS') INTO TIMESTAMP FROM DUAL;
   dbms_output.put_line('* '||TIMESTAMP||' Analyze v'||VERSION||' completed.');
