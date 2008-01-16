@@ -48,8 +48,10 @@ fi
 
 # -----------[ name of the file to write the log to (or 'OFF' for no log) ]---
 TPREF=`echo $PREFIX | tr 'a-z' 'A-Z'`
+[ ! -d "$SPOOLDIR" ] && SPOOLDIR=""
+[ -n "$SPOOLDIR" ]   && SPOOLDIR="${SPOOLDIR}/"
 case "$TPREF" in
   OFF) SPOOL=OFF;;
-  DEFAULT) SPOOL="${DEFPREF}_${FEXT}.spool";;
-  *) SPOOL="${PREFIX}_${FEXT}.spool";;
+  DEFAULT) SPOOL="${SPOOLDIR}${DEFPREF}_${FEXT}.spool";;
+  *) SPOOL="${SPOOLDIR}${PREFIX}_${FEXT}.spool";;
 esac

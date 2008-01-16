@@ -7,6 +7,7 @@
 # -----------------------------------------------------------------------------
 #                                                              Itzchak Rehberg
 #
+# =========================================================[ Global values ]===
 # login information
 user=""
 password=""
@@ -22,6 +23,8 @@ export ORACLE_SID=$1
 # all other values will be understand literally. Since we use SQL*Plus and
 # its SPOOL facility, existing files will be overwritten without warning!
 PREFIX=DEFAULT
+# Directory to store the output (Spool) files. Leave empty for current dir
+SPOOLDIR=out
 
 # ====================================================[ analobj & tabreorg ]===
 # restrictions: what are the minimal settings to display?
