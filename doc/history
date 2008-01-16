@@ -3,7 +3,7 @@ $Id$
 History for DBAHelper
 =====================
 
-v0.2.2
+v0.2.2 (16.01.2008)
 -------------------
 + added the sqltune script (for Oracle 10g)
 + added script to list up undo records used by current processes
