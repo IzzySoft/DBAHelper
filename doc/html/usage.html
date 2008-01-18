@@ -334,6 +334,15 @@
            resp. control file whether those files really exist physically. Those no
 	   longer existing will be marked 'expired'. Take care that all your drives
 	   are available when running this.</td></tr>
+   <tr><td class="td_name"><code>move_fra</code></td>
+       <td class="text">If your current recovery area runs out of disk space, you
+           may want to relocate it to a different disk without losing its content.
+	   Using the <code>move_fra</code> command of <code>rman.sh</code>, this
+	   will be done automatically for you: You will be asked to confirm the
+	   current FRA location, enter a new one, confirm the <code>ORACLE_SID</code> -
+	   and the script will create the new directory (if necessary), alter your
+	   database to use the new location, move all files to there, and run RMAN
+	   to update its catalog/controlfile accordingly.</td></tr>
    <tr><td class="td_name"><code>force_clean</code></td>
        <td class="text">This does a thoroughly check for those orphans and obsolete
            files oracle forgot about. Use this carefully - and read more about it

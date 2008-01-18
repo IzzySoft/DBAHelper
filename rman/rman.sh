@@ -16,6 +16,7 @@ CONFIGUREOPTS=
 DRYRUN=0
 typeset -i SILENT=0
 YESTOALL=0
+NOHEAD=0
 
 . ${BINDIR}/rmanrc
 
@@ -48,6 +49,7 @@ function help {
   echo "     create_standby     Create a standby database from a running instance"
   echo "     crosscheck         Validates backup availability and integrity"
   echo -e "     force_clean	Clean pseudo-orphans. ${red}USE WITH CARE! *$NC"
+  echo "     move_fra		Move Recovery Area to new disk location"
   echo "     recover		Fast Recover database (if possible)"
   echo "     restore_full       Restore the complete DB from backup"
   echo "     restore_ts         Restore a single tablespace from backup"
@@ -107,15 +109,17 @@ function finito {
 
 #------------------------------------------[ Display introductional header ]---
 function header {
-  [ $SILENT -lt 3 ] && clear
-  say "${blue}RMAN Wrapper Script"
-  say "-------------------${NC}"
-  say
-  if [ $DRYRUN -eq 0 ]; then
-    say "Running $CMD"
-  else
-    say "Running $CMD (Dryrun)"
-  fi
+  [ $NOHEAD -eq 0 ] && {
+    [ $SILENT -lt 3 ] && clear
+    say "${blue}RMAN Wrapper Script"
+    say "-------------------${NC}"
+    say
+    if [ $DRYRUN -eq 0 ]; then
+      say "Running $CMD"
+    else
+      say "Running $CMD (Dryrun)"
+    fi
+  }
 }
 
 #--------------------------[ Read user input and make sure it is numerical ]---
@@ -186,6 +190,7 @@ while [ "$1" != "" ] ; do
     --dryrun)  DRYRUN=1;;
     --force-configure) CONFIGUREOPTS=force;;
     --yestoall) YESTOALL=1;;
+    --noheader) NOHEAD=1;;
   esac
   shift
 done
@@ -589,6 +594,63 @@ case "$CMD" in
     fdat=`echo $fdat|sed 's/\n//g'`
     runcmd "echo \"DELETE NOPROMPT ARCHIVELOG ALL COMPLETED BEFORE \\\"TO_DATE('$fdat','YYYY-MM-DD HH24:MI:SS')\\\";\"|${RMANCONN} | tee -a $LOGFILE"
     finito
+    ;;
+  move_fra)
+    say "${blue}Move Flash Recovery Area to a new location:$NC"
+    res="`echo \"set head off
+        select value from v\\$parameter where name='db_recovery_file_dest';\"|sqlplus -s '/ as sysdba'|sed -n '/^\/.*/p'`"
+    say
+    echo -en "${blue}Current location of the FRA ($res): $NC"
+    read oldfra
+    [ -z "$oldfra" ] && oldfra="$res"
+    echo -en "${blue}New location of the FRA: $NC"
+    read newfra
+    [ ! -d "$newfra" ] && {
+      say "${blue}You specified '$newfra' as new location."
+      echo -en "This directory does not exist. Create it (y/n) ? $NC"
+      yesno
+      [ "$res" != "y" ] && {
+        say "${red}Sorry - in this case we cannot do anything for you.$NC"
+	finito
+      }
+      runcmd "mkdir -p \"$newfra\""
+    }
+    echo
+    say "${blue}Altering the database to use the new destination. Which database"
+    echo -en "(ORACLE_SID) should we alter ($ORACLE_SID)? $NC"
+    read res
+    [ -n "$res" ] && export ORACLE_SID=$res
+    say "${blue}Altering $ORACLE_SID to use $newfra as new recovery area...$NC"
+    runcmd "echo \"ALTER SYSTEM SET DB_RECOVERY_FILE_DEST='$newfra';\"|sqlplus -s '/ as sysdba'"
+    say
+    echo -en "${blue}If there where no errors, we can continue. Should we (y/n)? $NC"
+    yesno
+    stayorgo
+    say "${blue}Moving the files from the old FRA to the new one...$NC"
+    oldfra=`echo $oldfra|sed 's/ /\\\ /'`
+    newfra=`echo $newfra|sed 's/ /\\\ /'`
+    echo "mv $oldfra/* $newfra"
+    runcmd "mv $oldfra/* $newfra"
+    echo -en "${blue}If there where no errors, we can continue. Should we (y/n)? $NC"
+    yesno
+    stayorgo
+    say "${blue}Now we must update our 'catalog' (controlfile) with the changed"
+    say "location. Therefore we first unregister the old one, and then register"
+    say "the new - so do not get a shock and think all your files are gone, as"
+    say "it may look like this at first (since RMAN looks at the old location)."
+    say
+    say "=> Unregistering the old location now...$NC"
+    sleep 1
+    [ $DRYRUN -eq 0 ] && res="" || res="--dryrun"
+    $0 crosscheck --noheader $res
+    $0 cleanup_expired --noheader $res
+    say "${blue}=> Registering the new location...$NC"
+    sleep 1
+    echo "CATALOG RECOVERY AREA NOPROMPT;">$TMPFILE
+    echo "exit">>$TMPFILE
+    runcmd "${RMANCONN} <$TMPFILE" "$TMPFILE"
+    say "${blue}If there have been no errors, you successfully moved your FRA"
+    say "to the new location. Congratulations!$NC"
     ;;
   *)
     help

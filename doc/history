@@ -3,6 +3,10 @@ $Id$
 History for DBAHelper
 =====================
 
+v0.2.3
+-------------------
++ rman.sh: added the move_fra command to move the recovery area to a new location
+
 v0.2.2 (16.01.2008)
 -------------------
 + added the sqltune script (for Oracle 10g)
