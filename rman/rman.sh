@@ -273,6 +273,32 @@ case "$CMD" in
       yesno
       stayorgo
     } || echo
+    # Copy backups to standby host
+    say "${blue}If the standby instance will be on a different host, we need to copy the backup"
+    say "there. This can be done automatically using SSH now - if SSH is setup so the"
+    say "oracle user can directly access its account there from here. Otherwise, you will"
+    say "have to do this manually."
+    echo -en "Copy the backup files automatically now (y/n)? $NC"
+    yesno
+    if [ "$res" == "y" ]; then
+      res="`echo \"set head off
+          select value from v\\$parameter where name='db_recovery_file_dest';\"|sqlplus -s '/ as sysdba'|sed -n '/^\/.*/p'`"
+      say
+      echo -en "${blue}Current location of the Backup ($res): $NC"
+      read srcdir
+      [ -z "$srcdir" ] && srcdir="$res"
+      echo -en "${blue}Hostname of the remote host: $NC"
+      read remotehost
+      echo -en "${blue}Backup location on the remote host ($srcdir): $NC"
+      read targetdir
+      [ -z "$targetdir" ] && targetdir="$srcdir"
+      say "${blue}Copying files to remote host...$NC"
+      runcmd "scp -r $srcdir/* ${remotehost}:$targetdir"
+      say
+    else
+      say "${blue}Do not forget to make the backup available on the standby host!$NC"
+    fi
+
     # Last hints about availability master/client (mount/nomount)
     say "${blue}Now, please make sure that:"
     say "- you started the (not yet existing) standby database NOMOUNT using the"
@@ -302,7 +328,41 @@ case "$CMD" in
       say "${red}The specified database is not available via Oracle Net - aborting!$NC"
       exit 1
     }
+    # Test availibility of databases
+    say "${blue}Checking whether the databases are prepared:$NC"
+    res="`echo \"set head off
+        select status from v\\$instance;\"|sqlplus -s '/ as sysdba'`"
+    res=`echo $res|awk '{ print $NF }'`
+    if [ "$res" == "OPEN" ]; then
+      say "${blue}* Primary database is $res - OK$NC"
+    elif [ "$res" == "MOUNTED" ]; then
+      say "${blue}* Primary database is $res - OK$NC"
+    else
+      say "${red}* Primary database must be open or at least mounted! Please start it up"
+      say "  before you continue - or the process will fail!$NC"
+      echo -en "  ${blue}Shall we bring it up to mount now (y/n)? $NC"
+      yesno
+      stayorgo
+      runcmd "echo \"startup mount\"|sqlplus -s '/ as sysdba'"
+    fi
+    res="`echo \"set head off
+        select status from v\\$instance;\"|sqlplus -s 'sys/$syspwd@$tnsname as sysdba'`"
+    res=`echo $res|awk '{ print $NF }'`
+    if [ "$res" == "STARTED" ]; then
+      say "${blue}* Standby database is $res without mounting - OK$NC"
+    else
+      say "${red}* Standby database is not yet started!$NC"
+      echo -en "  ${blue}Shall we bring it up to NOMOUNT state now (y/n)? $NC"
+      yesno
+      stayorgo
+      runcmd "echo \"startup nomount\"|sqlplus -s 'sys/$syspwd@$tnsname as sysdba'"
+    fi
+    say
     # Creating the standby database
+    echo -en "${blue}Now we can create the standby database. Ready (y/n)? $NC"
+    yesno
+    stayorgo
+    say
     say "${blue}Creating the standby database now...$NC"
     RMANCONN="$RMANCONN auxiliary sys/$syspwd@$tnsname"
     runcmd "$RMANCONN < $BINDIR/rman.$CMD" | tee -a "$LOGFILE"

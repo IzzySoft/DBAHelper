@@ -6,6 +6,8 @@ History for DBAHelper
 v0.2.3
 -------------------
 + rman.sh: added the move_fra command to move the recovery area to a new location
++ rman.sh: create_standby now also copies backup files to new standby machine
+  on demand (using scp), checks DB status and optionally starts up the database(s)
 
 v0.2.2 (16.01.2008)
 -------------------
