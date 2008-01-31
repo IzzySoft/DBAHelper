@@ -14,6 +14,7 @@ fi
 BINDIR=${0%/*}
 CONFIGUREOPTS=
 DRYRUN=0
+ALLDBS=0
 typeset -i SILENT=0
 YESTOALL=0
 NOHEAD=0
@@ -35,9 +36,9 @@ function help {
   echo "============================================================================"
   echo "RMAN wrapper            (c) 2007-2008 by Itzchak Rehberg (devel@izzysoft.de)"
   echo "----------------------------------------------------------------------------"
-  echo This script is intended to generate a HTML report for the Oracle StatsPack
-  echo collected statistics. Look inside the script header for closer details, and
-  echo check for the configuration there as well.
+  echo "This script is intended as a wrapper to Oracles Recovery Manager (RMAN)."
+  echo "Configuration can be done in the files rmanrc (for the script itself) plus"
+  echo "rman[_\$ORACLE_SID].conf (database specific). See the manual for details."
   echo ----------------------------------------------------------------------------
   echo "Syntax: ${SCRIPT} <Command> [Options]"
   echo "  Commands:"
@@ -62,6 +63,8 @@ function help {
   echo "     -q Be quiet (repeat up to 3 times)"
   echo "     -r <ORACLE_SID/Connection String for Catalog DB (Repository)>"
   echo "     -u <username>"
+  echo "     --all              Only for backup_daily: All databases (checked by"
+  echo "                        existing rman_\$ORACLE_SID.conf files)"
   echo "     --dryrun		Don't do anything, just show what would be done"
   echo "     --force-configure	Force the configure script to run"
   echo -e "     --yestoall		Assume 'yes' to all questions. ${red}Use with care!$NC"
@@ -70,7 +73,7 @@ function help {
   echo "  Example: Restore local DB using catalog:"
   echo "    ${SCRIPT} restore_full -r catman/catpass@catdb"
   echo
-  echo -e "${red}*$NC Work around some Oracle bugs. See documentation for details."
+  echo -e "${red}*$NC Work around some bugs/misconfiguration. See documentation for details."
   echo ============================================================================
   echo
 }
@@ -115,9 +118,9 @@ function header {
     say "-------------------${NC}"
     say
     if [ $DRYRUN -eq 0 ]; then
-      say "Running $CMD"
+      say "Running $CMD (using database configuration from '$CONFIG')"
     else
-      say "Running $CMD (Dryrun)"
+      say "Running $CMD (Dryrun - using database configuration from '$CONFIG')"
     fi
   }
 }
@@ -187,6 +190,7 @@ while [ "$1" != "" ] ; do
     -q) [ $SILENT -lt 3 ] && let SILENT=$SILENT+1;;
     -r) shift; CATALOG=$1;;
     -u) shift; username=$1;;
+    --all) ALLDBS=1;;
     --dryrun)  DRYRUN=1;;
     --force-configure) CONFIGUREOPTS=force;;
     --yestoall) YESTOALL=1;;
@@ -195,7 +199,13 @@ while [ "$1" != "" ] ; do
   shift
 done
 
-[ -z "$CONFIG" ] && CONFIG=$BINDIR/rman.conf
+[ -z "$CONFIG" ] && {
+  if [ -f $BINDIR/rman_$ORACLE_SID.conf ]; then
+    CONFIG=$BINDIR/rman_$ORACLE_SID.conf
+  else
+    CONFIG=$BINDIR/rman.conf
+  fi
+}
 [ -z "$username" ] && SYSDBA="/ as sysdba"
 [ -z "$LOGFILE" ] && LOGFILE="${LOGDIR}/rman_$CMD-`date +\"%Y%m%d_%H%M%S\"`"
 
@@ -385,8 +395,27 @@ case "$CMD" in
     echo
     finito
     ;;
-  backup_daily|validate|crosscheck)
+  validate|crosscheck)
     runcmd "${RMANCONN} < $TMPFILE | tee -a $LOGFILE"
+    ;;
+  backup_daily)
+    if [ $ALLDBS -eq 0 ]; then
+      runcmd "${RMANCONN} < $TMPFILE | tee -a $LOGFILE"
+    else
+      ORISID=$ORACLE_SID
+      typeset -i FOUNDCONF=0
+      for cfg in $BINDIR/rman_*.conf; do
+        [ -f "$cfg" ] && {
+          SID=`echo $cfg|sed 's/.*rman_\(.*\)\.conf/\1/g'`
+          export ORACLE_SID=$SID
+          [ $DRYRUN -eq 1 ] && say "${blue}ORACLE_SID set to:$NC $SID"
+          runcmd "${RMANCONN} < $TMPFILE | tee -a $LOGFILE"
+          FOUNDCONF=$FOUNDCONF+1
+        }
+      done
+      [ $FOUNDCONF -eq 0 ] && runcmd "${RMANCONN} < $TMPFILE | tee -a $LOGFILE"
+      export ORACLE_SID=$ORISID
+    fi
     ;;
   cleanup_expired)
     runcmd "${RMANCONN} < $TMPFILE | tee -a $LOGFILE"

@@ -389,6 +389,17 @@
 	   e.g. <code>user/pass@remote</code>.</td></tr>
    <tr><td class="td_name"><code>-u &lt;username&gt;</code></td>
        <td class="text">User to connect to the target database</td></tr>
+   <tr><td class="td_name"><code>--all</code></td>
+       <td class="text">Only affects the <code>backup_daily</code> command: Run
+           the backup for all databases. This requires a configuration file for
+           each database which should be handled by this: Take the <code>rman.conf</code>
+           file as a template, and copy (or symlink) it to <code>rman_$ORACLE_SID.conf</code>
+           in the same directory. <code>rman.sh backup_daily --all</code> will check
+           for all files named <code>rman_*.conf</code>, set the <code>ORACLE_SID</code>
+           to what the <code>*</code> expands to, and run the backup. If no
+           <code>rman_*.conf</code> file is found, it will run as if the <code>--all</code>
+           option was not given (i.e. run the backup for the currently set
+           <code>ORACLE_SID</code> only).</td></tr>
    <tr><td class="td_name"><code>--dryrun</code></td>
        <td class="text">Don't run commands that would do changes, just display
            what would be done</td></tr>

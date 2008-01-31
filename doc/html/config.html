@@ -134,10 +134,15 @@
  </td></tr>
  <tr><th class="th_sub"><a name="rman"></a>RMAN Settings</th></tr>
  <tr><td class="text">
-  RMAN configuration mostly takes place in the <code>rman/rman.conf</code> file.
-  For syntax and convention, please consult the RMAN manual. However, some
-  settings can be passed on the command line - see <A HREF="usage.html#rman">RMAN
-  usage</A> for details. Some settings are made inside the <code>rmanrc</code> file:
+  RMAN configuration for the database mostly takes place in the
+  <code>rman/rman.conf</code> file. If you have multiple databases running on
+  the same host, you can also use database specific configuration files, named
+  <code>rman/rman_$ORACLE_SID.conf</code>. If such a file is found for the
+  database to handle, it is prefered over the common <code>rman.conf</code>.
+  These files are especially useful for the <code>rman.sh backup_daily --all</code>
+  command - for this (and possible other command line switches), see
+  <A HREF="usage.html#rman">RMAN usage</A>.<BR>
+  Settings for <code>rman.sh</code> itself are made inside the <code>rmanrc</code> file:
  </td></tr>
  <tr><td class="text">
   <table align="center" width="95%">
