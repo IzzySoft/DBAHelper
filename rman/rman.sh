@@ -18,6 +18,7 @@ ALLDBS=0
 typeset -i SILENT=0
 YESTOALL=0
 NOHEAD=0
+CONFIGSTATEFILE="~/.rman_configured"
 
 . ${BINDIR}/rmanrc
 
@@ -143,18 +144,27 @@ function readnr {
   }
 }
 
+#-------------------------------------------------------[ Set config names ]---
+function setconfig {
+  if [ -n "$1" ]; then
+    CONFIGSTATEFILE="$HOME/.rman_configured_$1"
+  else
+    CONFIGSTATEFILE="$HOME/.rman_configured"
+  fi
+}
+
 #-------------------------------[ Run RMAN configure script only if needed ]---
 function runconfig {
   local CONFIGURED=0
   [ "$1" != "force" ] &&
-    [ -f ~/.rman_configured ] && {
-      [ ~/.rman_configured -nt $CONFIG ] && CONFIGURED=1
+    [ -f ${CONFIGSTATEFILE} ] && {
+      [ ${CONFIGSTATEFILE} -nt $CONFIG ] && CONFIGURED=1
     }
   [ $CONFIGURED -eq 0 ] && {
     say "${blue}The configuration file has been changed (or never run before), so we may"
     say "need to configure the RMAN settings. Running the configuration commands now:$NC"
     ${RMANCONN} < $CONFIG | tee -a $LOGFILE
-    touch ~/.rman_configured
+    eval "touch ${CONFIGSTATEFILE}"
   }
 }
 
@@ -199,10 +209,13 @@ while [ "$1" != "" ] ; do
   shift
 done
 
+#---------------------------------------[ check for the config file to use ]---
 [ -z "$CONFIG" ] && {
-  if [ -f $BINDIR/rman_$ORACLE_SID.conf ]; then
+  if [ -e $BINDIR/rman_$ORACLE_SID.conf ]; then
     CONFIG=$BINDIR/rman_$ORACLE_SID.conf
+    setconfig $ORACLE_SID
   else
+    setconfig
     CONFIG=$BINDIR/rman.conf
   fi
 }
@@ -222,7 +235,7 @@ fi
 }
 
 #--------------------------------------[ Check if configuration has to run ]---
-runconfig $CONFIGOPTS
+[ $ALLDBS -eq 0 ] && runconfig $CONFIGUREOPTS
 
 #==============================================================[ Say Hello ]===
 header
@@ -409,6 +422,8 @@ case "$CMD" in
           SID=`echo $cfg|sed 's/.*rman_\(.*\)\.conf/\1/g'`
           export ORACLE_SID=$SID
           [ $DRYRUN -eq 1 ] && say "${blue}ORACLE_SID set to:$NC $SID"
+          setconfig $SID
+          runconfig
           runcmd "${RMANCONN} < $TMPFILE | tee -a $LOGFILE"
           FOUNDCONF=$FOUNDCONF+1
         }
