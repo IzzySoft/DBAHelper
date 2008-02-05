@@ -3,6 +3,18 @@ $Id$
 History for DBAHelper
 =====================
 
+v0.2.4
+-------------------
+* completely restructured the RMAN framework for a better UI handling. This uses
+  the "dialog" tool if available (package "dialog" with most Linux distros),
+  falling back to plain shell if not available (or configured otherwise)
++ rman.rc: default settings for UI (USEDIALOG) and timeout of dialog boxes
++ rman.sh: new parameters --[no]dialog to override settings for "dialog" usage
+! rman.sh: backup_daily now checks the recovery window set by the corresponding
+  rman*.conf file
++ rman.sh: create_standby now also creates the init.ora files and transfers the
+  copy to the standby
+
 v0.2.3 (05.02.2008)
 -------------------
 + rman.sh: added the move_fra command to move the recovery area to a new location

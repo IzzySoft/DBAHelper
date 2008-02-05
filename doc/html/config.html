@@ -138,10 +138,10 @@
   <code>rman/rman.conf</code> file. If you have multiple databases running on
   the same host, you can also use database specific configuration files, named
   <code>rman/rman_$ORACLE_SID.conf</code>. If such a file is found for the
-  database to handle, it is prefered over the common <code>rman.conf</code>.
-  These files are especially useful for the <code>rman.sh backup_daily --all</code>
-  command - for this (and possible other command line switches), see
-  <A HREF="usage.html#rman">RMAN usage</A>.<BR>
+  database to handle, it is prefered over the common <code>rman.conf</code> (to
+  which it defaults otherwise). These files are especially useful for the
+  <code>rman.sh backup_daily --all</code> command - for this (and possible other
+  command line switches), see <A HREF="usage.html#rman">RMAN usage</A>.<BR>
   Settings for <code>rman.sh</code> itself are made inside the <code>rmanrc</code> file:
  </td></tr>
  <tr><td class="text">
@@ -170,6 +170,16 @@
            AutoExtend feature (ON) or not (OFF). Refer to your Oracle documentation
 	   for more details. Used by the
            restore_ts command, which will ask you to confirm it on run.</td></tr>
+   <tr><td class="td_name"><code>USEDIALOG</code></td>
+       <td class="text">Whether to use the friendlier UI built with <code>dialog</code>,
+           if possible (1) or not (0). If <code>dialog</code> is not installed,
+           this setting has no effect and the script will fallback to "plain
+           shell" mode. It will also fallback if you specified <code>-q</code>
+           on the command line more than once (e.g. for scripts). This setting
+           can be overruled by the <code>--[no]dialog</code> command line switch.</td></tr>
+   <tr><td class="td_name"><code>TIMEOUT</code></td>
+       <td class="text">Only relevant to the <code>dialog</code> UI: Close
+           un-answered message boxes after this many seconds.</td></tr>
   </table>
  <tr><th class="th_sub"><a name="exp"></a>ExportOracleDB</th></tr>
  <tr><td class="text">

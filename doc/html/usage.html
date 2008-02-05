@@ -288,6 +288,17 @@
      <div align="center"><div class="code" style="width:18em">
        ./rman.sh &lt;command&gt; [options]
      </div></div><p>
+     Starting with version v0.2.4 of the DBAHelper package, the RMAN framework
+     has been almost completely reworked. You will notice this immediately after
+     the first start of the new tool - if you have <code>dialog</code> installed
+     on your machine: Most of the work have been on a more friendly UI using
+     <code>dialog</code>, if available - or falling back to "plain shell" mode
+     otherwise. For interactive use, <code>dialog</code> is highly recommended.
+     For non-interactive use, such as automated backups/cleanups, I recommend to
+     always add the <code>-q</code> option at least two times (output is either
+     written to logfile, and not attended directly during automated runs), which
+     also forces the script back to "plain shell" mode.
+  </p><p>
      So far, the following commands are available:</p>
  </td></tr>
  <tr><td class="text">
@@ -381,7 +392,9 @@
        <td class="text">Be quiet - don't produce so much output. Can be specified
            multiple times: <code>-q</code> redirects STDOUT from called progs to
 	   <code>/dev/null</code>, <code>-q -q</code> additionally redirects
-	   STDERR, and <code>-q -q -q</code> even suppresses most of the "background
+	   STDERR (plus forces the script to fallback to "plain shell" mode
+           instead of using <code>dialog</code>, which is useful for automated
+           scripts), and <code>-q -q -q</code> even suppresses most of the "background
 	   information" (except for the questions asked) the script itself produces.</td></tr>
    <tr><td class="td_name"><code>-r &lt;catalog specification&gt;</code></td>
        <td class="text">complete connection description for the recovery catalog
@@ -409,6 +422,11 @@
 	   <code>~/.rman_configured</code>. On consecutive executions, it compares
 	   the timestamp and only runs <code>rman.conf</code> again if it is newer
 	   than the reference file. With this parameter you can enforce a config run.</td></tr>
+   <tr><td class="td_name"><code>--[no]dialog</code></td>
+       <td class="text">Overrides the <code>USEDIALOG</code> setting of the
+           <code>rmanrc</code> file to use (<code>--dialog</code>) or not to use
+           (<code>--nodialog</code>) the more user friendly <code>dialog</code>
+           UI if available (and not rendered inactive by multiple <code>-q</code>).</td></tr>
    <tr><td class="td_name"><code>--yestoall</code></td>
        <td class="text">Assume 'Yes' as answer to all questions. This is targeted
            for use in cron jobs once you tested what the command to execute does.
