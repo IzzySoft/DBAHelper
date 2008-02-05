@@ -1,0 +1,52 @@
+#--------------------------------------------------[ Check what GUI to use ]---
+if [ $USEDIALOG -eq 1 -a $SILENT -lt 2 ]; then
+  DIALOG=`which dialog`
+  if [ $? -eq 0 ]; then
+    . ${BINDIR}/mods/dialog.lib
+  else
+    . ${BINDIR}/mods/ansi.lib
+    unset DIALOG
+  fi
+else
+  . ${BINDIR}/mods/ansi.lib
+fi
+#---------------------------------[ Run or display CMD depending on DRYRUN ]---
+# $1 - CMD
+# $2 - Scriptfile to display when in dryrun
+# $3 - Title for tailbox (if not given - no tailbox
+# $4 - Timeout for tailbox (not given - no timeout)
+function runcmd {
+  if [ $DRYRUN -eq 0 ]; then
+    [ -n "$3" ] && {
+      WINTITLE="$3"
+      local TB="| tailbox $SPOOLFILE $4 2>/dev/null"
+    }
+    touch $SPOOLFILE
+    case $SILENT in
+      0) cmd="$1 |tee -a $SPOOLFILE";;
+      1) cmd="$1 > $SPOOLFILE $TB";;
+      2|3) cmd="$1 &> $SPOOLFILE";;
+    esac
+    eval $cmd
+  else
+    SILENT=0
+    echo "Running command:">$SPOOLFILE
+    echo "$1">>$SPOOLFILE
+    [ -n "$2" ] && {
+      echo >>$SPOOLFILE
+      echo "Scriptfile content:">>$SPOOLFILE
+      cat $2>>$SPOOLFILE
+    }
+    textbox "$SPOOLFILE"
+    return 0
+  fi
+}
+
+#-------------------------------------------------[ Read & Verify Password ]---
+function readpass {
+  password "$1"
+  pass1=$res
+  password "Repeat password:"
+  pass2=$res
+  [ "$pass1" != "$pass2" ] && readpass "Passwords are not identical.\n$1"
+}

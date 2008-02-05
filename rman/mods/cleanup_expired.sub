@@ -1,0 +1,31 @@
+
+#---------------------------------------------------[ Introductional hints ]---
+WINTITLE="Step 1: Crosscheck"
+message "We will first need to run a crosscheck. Following that, we create a list
+         of expired files, which then will be displayed to you. Please check the
+         list carefully before you proceed."
+waitmessage "Running crosscheck..."
+runcmd "${RMANCONN} < $TMPFILE | tee -a $LOGFILE"
+cat ${BINDIR}/rman.cleanup_expired_list >$TMPFILE
+echo "exit">>$TMPFILE
+runcmd "${RMANCONN} < $TMPFILE | tee -a $LOGFILE"
+
+WINTITLE="Step 2: List of expired files (please check)"
+textbox "$SPOOLFILE"
+
+WINTITLE="Step 3: Cleanup"
+yesno "The previous screen listed all found expired objects, i.e. those are no
+       longer available on the disks, but still in the catalog/controlfile - or
+       available in both but out of date. To keep the records small (especially
+       when you are not using a catalog DB but the control files to record your
+       backups), we can purge them from the catalog/controlfile. Since they do
+       not exist anymore, those records are useless.\n
+       \nDo you want to purge the expired records now?"
+if [ $? -eq 0 ]; then
+  waitmessage "Purging catalog/controlfile:"
+  cat $BINDIR/rman.${CMD}_doit > $TMPFILE
+  echo exit >> $TMPFILE
+  runcmd "${RMANCONN} < $TMPFILE | tee -a $LOGFILE" "$TMPFILE"
+else
+  waitmessage "Skipping purge process for expired records."
+fi

@@ -1,0 +1,120 @@
+#!/bin/bash
+#BACKTITLE="Demo Script"
+#WINTITLE="Box title"
+SHADOW=0
+
+trap 'echo; exit' INT TERM
+
+#-----------------------------------------------------------------[ Colors ]---
+if [ -n "${TERM}" ]; then
+  red='\e[1;35;44m'
+  blue='\e[0;37;44m'
+  blink='\E[5m'
+#  NC='\e[0m'              # No Color
+  NC="$blue"
+fi
+
+# Obtain the current window size
+function winsize {
+  win_x=`stty size|awk '{print $2}'`
+  win_y=`stty size|awk '{print $1}'`
+  typeset i win_x
+  typeset i win_y
+}
+# Set titles if needed
+function titles {
+  winsize
+  echo -e "$blue "
+  clear
+  echo "$BACKTITLE"
+  line=""
+  typeset i i=1
+  while [ $i -lt $win_x ]; do
+    echo -n "_"
+    let i=$i+1
+  done;
+  printf "%${win_x}s" "$WINTITLE"
+  echo
+  outL="echo -en"
+}
+# Format text for output according to screensize
+function textformat {
+  msg=$1
+  line=""
+  while [ ${#msg} -gt $win_x ]; do
+    txt=${msg:0:$win_x}
+    rtxt=${txt%%\\n*}
+    if [ "$txt" != "$rtxt" ]; then
+      txt="$rtxt"
+      len=${#txt}
+      msg=${msg:$len+2}
+    else
+      txt=${txt% *}
+      len=${#txt}
+      msg=${msg:$len+1}
+    fi
+    line="${line}$txt\n"
+  done
+  line="${line}$msg"
+}
+# Display "Please wait..." message
+function waitmessage {
+  [ $SILENT -eq 3 ] && return 0
+  titles
+  textformat "$1"
+  outL="$outL '${blue}\n$line$NC'"
+  eval $outL
+}
+# Output a message ($1 is the message)
+# rc: 0 = OK, 1 = Ctrl-C 255 = ESC
+function message {
+  [ $SILENT -eq 3 ] && return 0
+  waitmessage "$1"
+  [ $YESTOALL -eq 0 ] && read res
+}
+# Same for alerts
+function alert {
+  [ $SILENT -eq 3 ] && return 0
+  titles
+  textformat "$1"
+  outL="$outL '${red}\n$line$NC'"
+  eval $outL
+  [ $YESTOALL -eq 0 ] && read res
+}
+# Output yesno-box
+# rc: 0 = Yes, 1 = No/Ctrl-C, 255 = ESC
+function yesno {
+  [ $SILENT -lt 3 -o $YESTOALL -eq 0 ] && waitmessage "$1 (y/n) "
+  [ $YESTOALL -eq 1 ] && return 0
+  local key=""
+  read -n 1 key
+  [ "$key" = "y" -o "$key" = "Y" ]
+}
+# Ask for input ($1:Text $2:DefaultVal)
+# input is stored in $res ("-" on abort)
+function readval {
+  titles
+  textformat "$1"
+  outL="$outL '${blue}\n$line$NC'"
+  eval $outL
+  read res
+}
+# Password input
+function password {
+  titles
+  textformat "$1"
+  outL="$outL '${blue}\n$line$NC'"
+  eval $outL
+  read -s res
+}
+# Display a file
+function textbox() {
+  [ $SILENT -eq 3 ] && return 0
+  titles
+  cat "$1"
+  read dummy
+}
+# Dummy
+function tailbox() {
+  dummy=1
+}

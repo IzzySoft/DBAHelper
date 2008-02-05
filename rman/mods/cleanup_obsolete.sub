@@ -1,0 +1,23 @@
+
+WINTITLE="Step 1/3: Preparing list of obsolete files"
+message "We will now create a list of obsolete files. Please check it and make sure you want to cleanup all of them."
+waitmessage "Preparing obsolete files list..."
+runcmd "${RMANCONN} < $TMPFILE | tee -a $LOGFILE" "$TMPFILE"
+
+WINTITLE="Step 2/3: Checking list of obsolete files"
+textbox "$SPOOLFILE"
+
+WINTITLE="Step 3/3: Purging obsolete files"
+yesno "Above tables list the obsolete files - i.e. those which are no longer needed
+       according to your retention policy. To free diskspace (and keep your records
+       small especially when not using a catalog DB), you can purge them now, i.e.
+       removing them from the disk and catalog/controlfile.
+       \n\nDo you want to purge the obsolete files and records now?"
+if [ $? -eq 0 ]; then
+  waitmessage "Purging files and catalog/controlfile..."
+  cat $BINDIR/rman.${CMD}_doit > $TMPFILE
+  echo exit >> $TMPFILE
+  runcmd "${RMANCONN} < $TMPFILE | tee -a $LOGFILE" "$TMPFILE" "Purging files and catalog/controlfile..."
+else
+  waitmessage "Skipping purge process for obsolete files and records."
+fi

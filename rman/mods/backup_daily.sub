@@ -1,0 +1,46 @@
+#================[ Read the rman.backup_daily script and replace variables ]===
+function mscript() {
+  # Read rman*.conf and check for the RECOVERY WINDOW size first
+  while read line; do
+    [ "${line:0:1}" = "#" ] && continue
+    [ -z "`echo $line|grep -i 'RECOVERY WINDOW'`" ] && continue
+    local rwin=`echo $line|awk '{print $8}'`
+  done<$CONFIG
+  cat /dev/null>$TMPFILE
+  # Replace __n__ in rman.backup_daily with the window size found above
+  while read line; do
+    echo $line|sed "s/__n__/$rwin/">>$TMPFILE
+  done<${BINDIR}/rman.backup_daily
+}
+
+#=========================================================[ Run the Backup ]===
+#---------------------------------------------------[ Env. ORACLE_SID only ]---
+if [ $ALLDBS -eq 0 ]; then
+  waitmessage "Creating backup for $ORACLE_SID..."
+  mscript
+  runcmd "${RMANCONN} < $TMPFILE | tee -a $LOGFILE" $TMPFILE "Creating backup for $ORACLE_SID..."
+#-----------------------------------[ For all rman_ORACLE_SID.conf (--all) ]---
+else
+  ORISID=$ORACLE_SID
+  typeset -i FOUNDCONF=0
+  for cfg in $BINDIR/rman_*.conf; do
+    [ -f "$cfg" ] && {
+      SID=`echo $cfg|sed 's/.*rman_\(.*\)\.conf/\1/g'`
+      WINTITLE="$SID"
+      waitmessage "Creating backup for $SID..."
+      export ORACLE_SID=$SID
+      setconfig $SID
+      runconfig
+      mscript
+      runcmd "${RMANCONN} < $TMPFILE | tee -a $LOGFILE"
+      FOUNDCONF=$FOUNDCONF+1
+    }
+  done
+#--------------[ No rman_ORACLE_SID.conf found - run for default rman.conf ]---
+  [ $FOUNDCONF -eq 0 ] && {
+    waitmessage "Creating backup for $ORACLE_SID..."
+    mscript
+    runcmd "${RMANCONN} < $TMPFILE | tee -a $LOGFILE"
+  }
+  export ORACLE_SID=$ORISID
+fi

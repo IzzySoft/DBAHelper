@@ -1,0 +1,260 @@
+
+#=====================================[ Step 1: Introductional information ]===
+function step_1() {
+  WINTITLE="Step 1/$STEPS: Preparations"
+  text="In order to create a standby database, we first need some data. Please make sure that:\n
+- you run this script on the host of your PRIMARY database\n
+- your primary database is up and running (opened or mounted)\n
+- the directory structure is the same on both databases\n
+- on the host of your standby database, ALL necessary directories (for datafiles, logs, etc) are created and have the correct permissions\n
+\n
+If all this conditions are met, press OK - otherwise ESC to abort."
+  message "$text"
+  [ $? -ne 0 ] && abort
+
+# Ensure we are using the correct primary database
+  yesno "The current ORACLE_SID is set to '$ORACLE_SID'. Is this the database to create the standby database for?"
+  case "$?" in
+    255) abort;;
+      0) ;;
+      1) readval "Please enter the ORACLE_SID of the primary DB to use: "
+         export ORACLE_SID=$res
+	 ;;
+  esac
+}
+
+#=======================================================[ Step 2: init.ora ]===
+function step_2() {
+  WINTITLE="Step 2/$STEPS: Prepare parameter files"
+  #-------------------------------------------------[ Get primary init.ora ]---
+  initora="$ORACLE_HOME/dbs/init$ORACLE_SID.ora"
+  if [ -e "$initora" ]; then
+    yesno "Found '$initora' as possible initialization parameter file of your primary instance. Is this the correct file?"
+    [ $? != 0 ] && initora=""
+  else
+    initora=""
+  fi
+  [ -z "$initora" ] && {
+    message "Could not find the init.ora file of your primary instance. Please make sure yourself that you prepared this file for both, the primary and the standby instance accordingly."
+  }
+  #-----------------------------------------[ Query standby data from user ]---
+  readval "Please enter the TNS name of the standby database:"
+  tnsname=$res
+  readpass "SYS password on the Standby DB:"
+  # Test Oracle Net for specified standby tns name
+  dummy=`tnsping $tnsname`
+  [ $? -ne 0 ] && {
+      alert "The specified database is not available via Oracle Net - aborting!"
+      abort
+  }
+  stbunique="${ORACLE_SID}2"
+  readval "The standby database needs a unique name to distinguish it from the master. Please enter the unique name to use ($stbunique):"
+  [ -n "$res" ] && stbunique=$res
+  mastertns=$ORACLE_SID
+  readval "Please enter the TNS name for the primary database, i.e. how it can be reached from the standby system ($mastertns):"
+  [ -n "$res" ] && mastertns=$res
+  #----------------------------------[ (temporary) Filenames for init.oras ]---
+  stdbyini="init$ORACLE_SID.stdby"
+  masterini="init$ORACLE_SID.master"
+  text="Now we need filenames to store the updated init.ora files to, so you can verify the settings. Please specify the filename for the"
+  readval "$text Init.ora for the new Standby ($stdbyini): "
+  [ -n "$res" ] && stdbyini="$res"
+  readval "$text Init.ora for the new Master ($masterini): "
+  [ -n "$res" ] && masterini="$res"
+  #----------------------------------------[ Create the new init.ora files ]---
+  cat $initora|sed -e '/LOG_ARCHIVE_DEST_1/d' -e '/STANDBY_FILE_MANAGEMENT/d' \
+    -e '/STANDBY_ARCHIVE_DEST/d' -e '/DB_UNIQUE_NAME/d' -e '/FAL_SERVER/d' \
+    -e '/FAL_CLIENT/d' -e '/REMOTE_LOGIN_PASSWORD_FILE/d' >$stdbyini
+  cat $initora|sed -e '/LOG_ARCHIVE_DEST_1/d' -e '/STANDBY_FILE_MANAGEMENT/d' \
+    -e '/STANDBY_ARCHIVE_DEST/d' -e '/FAL_SERVER/d' \
+    -e '/FAL_CLIENT/d' -e '/REMOTE_LOGIN_PASSWORD_FILE/d' >$masterini
+  cat <<ENDNEW >>$stdbyini
+
+##########################
+# Parameters for DataGuard
+##########################
+LOG_ARCHIVE_DEST_1='SERVICE=$mastertns VALID_FOR=(ALL_LOGFILES,PRIMARY_ROLE)'
+STANDBY_FILE_MANAGEMENT=AUTO
+STANDBY_ARCHIVE_DEST='LOCATION=USE_DB_RECOVERY_FILE_DEST'
+DB_UNIQUE_NAME=$stbunique
+FAL_SERVER=$mastertns
+FAL_CLIENT=$tnsname
+REMOTE_LOGIN_PASSWORD_FILE=EXCLUSIVE
+ENDNEW
+  cat <<ENDNEW >>$masterini
+
+##########################
+# Parameters for DataGuard
+##########################
+LOG_ARCHIVE_DEST_1='SERVICE=$tnsname VALID_FOR=(ALL_LOGFILES,PRIMARY_ROLE)'
+STANDBY_FILE_MANAGEMENT=AUTO
+STANDBY_ARCHIVE_DEST='LOCATION=USE_DB_RECOVERY_FILE_DEST'
+FAL_SERVER=$tnsname
+FAL_CLIENT=$mastertns
+REMOTE_LOGIN_PASSWORD_FILE=EXCLUSIVE
+ENDNEW
+
+  message "The new init.ora files have been written to the desired destination ($masterini / $stdbyini). Please check if they are correct, and apply changes when necessary. After that, you can proceed (not before)."
+}
+
+# Forced Logging
+function step_3 {
+  WINTITLE="Step 3/$STEPS: Force Logging"
+  text='In order to protect direct writes, which are unlogged and thus would not be propagated to the standby database, you need to have forced logging enabled on the master (primary) database. Shall we do this now?'
+  yesno "$text"
+  case "$?" in
+    255) abort;;
+      1) ;;
+      0) echo "ALTER DATABASE FORCE LOGGING;">$TMPFILE.sql
+         runcmd "sqlplus / as sysdba <$TMPFILE.sql" | tee -a "$LOGFILE"
+         rm -f $TMPFILE.sql
+	 ;;
+  esac
+}
+
+# Make sure we have all backups + controlfile available
+function step_4 {
+  WINTITLE="Step 4/$STEPS: Backups"
+  yesno 'Did you create the control file for the standby database? (If you are not sure, you did not)'
+  case "$?" in
+    255) abort;;
+      0) ;;
+      1) waitmessage "Creating controlfile backup..."
+         echo "BACKUP CURRENT CONTROLFILE FOR STANDBY;">$TMPFILE
+         $RMANCONN <$TMPFILE | tee -a "$LOGFILE"
+         [ $? -ne 0 ] && {
+           alert "Some error occured creating the standby controlfile - aborting."
+           exit 1
+         }
+	 ;;
+  esac
+  yesno "We also need a full database backup. You want to create one now?"
+  case "$?" in
+    255) abort;;
+      1) ;;
+      0) . ${BINDIR}/mods/backup_daily
+         yesno "If the backup was made successfully, we can continue creating the Standby Database. If there have been errors (ignore the
+               \"RMAN-20207: UNTIL TIME or RECOVERY WINDOW is before RESETLOGS time\" on a database you just created within that time), this is the time to abort.\nContinue?"
+	 [ $? -ne 0 ] && abort
+	 ;;
+  esac
+}
+
+# Copy files to standby host
+function step_5 {
+  WINTITLE="Step 5/$STEPS: Copy data to target host"
+  yesno "Now we need to copy the parameter files and backups to the standby host. This can be done automatically using SSH now - if SSH is setup so the oracle user can directly access its account there from here. Otherwise, you will have to do this manually.\n\nCopy the files automatically now?"
+  case "$?" in
+    255) abort;;
+      1) message "Do not forget to make the backup available on the standby host!";;
+      0) srcdir="`echo \"set head off
+                select value from v\\$parameter where name='db_recovery_file_dest';\"|sqlplus -s '/ as sysdba'|sed -n '/^\/.*/p'`"
+         res=""
+         while [ -z "$res" ]; do
+           readval "Hostname of the remote host:"
+           remotehost=$res
+         done
+         waitmessage "Copying the parameter file..."
+         runcmd "scp $stdbyini $remotehost:${ORACLE_HOME}/dbs/init${ORACLE_SID}.ora"
+         [ $? -ne 0 ] && alert "Failed to copy $stdbyini to $remotehost:${ORACLE_HOME}/dbs/init${ORACLE_SID}.ora!\nPlease make sure to put the file to the standby machines ORACLE_HOME/dbs directory as init${ORACLE_SID}.ora"
+         readval "Current location of the Backup ($srcdir):"
+         [ -n "$res" ] && srcdir="$res"
+         readval "Backup location on the remote host ($srcdir):"
+	 [ -n "$res" ] && targetdir=$res || targetdir=$srcdir
+         waitmessage "Copying files to remote host..."
+         runcmd "scp -r $srcdir/* ${remotehost}:$targetdir"
+	 ;;
+  esac
+}
+
+# Last hints about availability master/client (mount/nomount)
+function step_6 {
+  WINTITLE="Step 6/$STEPS: Get databases ready"
+  message "Now, please make sure that:\n- you started the (not yet existing)
+           standby database NOMOUNT using the adjusted init.ora\n- the backup
+	   files are LOCALLY available on the standby machine (you may need to
+	   copy them there)\n- you can reach your standby database from the
+	   primary host via Oracle Net (configured in tnsnames.ora / Oracle Names / ...)\n"
+  [ $? -ne 0 ] && abort
+  #---------------------------------------[ Test availibility of databases ]---
+  msg="Checking whether the databases are prepared..."
+  waitmessage "$msg"
+  res="`echo \"set head off
+      select status from v\\$instance;\"|sqlplus -s '/ as sysdba'`"
+  res=`echo $res|awk '{ print $NF }'`
+  if [ "$res" == "OPEN" -o "$res" == "MOUNTED" ]; then
+    msg="$msg\n* Primary database is $res - OK"
+    waitmessage "$msg"
+  else
+    yesno "Primary database must be open or at least mounted! Please start it up before you continue - or the process will fail!\n
+          \nShall we bring it up to mount now?"
+    [ $? -ne 0 ] && abort
+    runcmd "echo \"startup mount\"|sqlplus -s '/ as sysdba'"
+    res="`echo \"set head off
+        select status from v\\$instance;\"|sqlplus -s '/ as sysdba'`"
+    res=`echo $res|awk '{ print $NF }'`
+    if [ "$res" == "MOUNTED" ]; then
+      msg="$msg\n* Primary database is $res - OK"
+      waitmessage "$msg"
+    else
+      alert "Could not startup the primary database!"
+      abort
+    fi
+  fi
+  res="`echo \"set head off
+      select status from v\\$instance;\"|sqlplus -s 'sys/$syspwd@$tnsname as sysdba'`"
+  res=`echo $res|awk '{ print $NF }'`
+  if [ "$res" == "STARTED" ]; then
+    msg="$msg\n* Standby database is $res without mounting - OK$NC"
+  else
+    yesno "Standby database is not yet started!\nShall we bring it up to NOMOUNT state now?"
+    [ $? -ne 0 ] && abort
+    runcmd "echo \"startup nomount\"|sqlplus -s 'sys/$syspwd@$tnsname as sysdba'"
+    res="`echo \"set head off
+        select status from v\\$instance;\"|sqlplus -s 'sys/$syspwd@$tnsname as sysdba'`"
+    res=`echo $res|awk '{ print $NF }'`
+    if [ "$res" == "STARTED" ]; then
+      msg="$msg\n* Standby database is $res without mounting - OK$NC"
+    else
+      alert "Could not prepare the standby database!"
+      abort
+    fi
+  fi
+}
+
+# Creating the standby database
+function step_7 {
+  WINTITLE="Step 7/$STEPS: Creating the Standby Database"
+  yesno "Now we can create the standby database. Ready?"
+  [ $? -ne 0 ] && abort
+  waitmessage "Creating the standby database now..."
+  RMANCONN="$RMANCONN auxiliary sys/$syspwd@$tnsname"
+  runcmd "$RMANCONN < $BINDIR/rman.$CMD" | tee -a "$LOGFILE"
+  # Final notes
+  yesno "If there have been no errors displayed: Congratulations, your new standby
+         database should be ready! However, there is some work left to you (and to your
+         decision):
+        \n- you need to start managed recovery on the standby database
+        \n- you need to make sure that this step is done automatically on server start
+        \n- you should make sure that the master is feeding your standby with redo\n
+        \nDo you want to start managed recovery on the standby DB now?"
+  case "$?" in
+    1) ;;
+    0) echo "ALTER DATABASE RECOVER MANAGED STANDBY DATABASE DISCONNECT;">$TMPFILE.sql
+       runcmd "sqlplus sys/$syspwd@$tnsname as sysdba <$TMPFILE.sql" | tee -a "$LOGFILE"
+       rm -f $TMPFILE.sql
+       ;;
+    *) abort;;
+  esac
+}
+
+STEPS=7
+step_1
+step_2
+step_3
+step_4
+step_5
+step_6
+step_7
+
+finito

@@ -1,0 +1,74 @@
+steps=5
+
+#--------------------------------------------------------[ Checking Values ]---
+WINTITLE="Step 1/$steps: Directory Specifications"
+readval "Which database (ORACLE_SID) should we alter ($ORACLE_SID)?"
+[ -n "$res" ] && export ORACLE_SID=$res
+oldfra="`echo \"set head off
+       select value from v\\$parameter where name='db_recovery_file_dest';\"|sqlplus -s '/ as sysdba'|sed -n '/^\/.*/p'`"
+readval "Current location of the FRA ($oldfra): "
+[ -n "$res" ] && oldfra="$res"
+readval "New location of the FRA: "
+newfra=$res
+[ ! -d "$newfra" ] && {
+  yesno "You specified '$newfra' as new location. This directory does not exist. Create it?"
+  [ $? -ne 0 ] && {
+    say "${red}Sorry - in this case we cannot do anything for you.$NC"
+    finito
+  }
+  runcmd "mkdir -p \"$newfra\""
+}
+
+#------------------------------------------------------[ Altering Database ]---
+WINTITLE="Step 2/$steps: Altering the database"
+waitmessage "Altering $ORACLE_SID to use $newfra as new recovery area..."
+runcmd "echo \"ALTER SYSTEM SET DB_RECOVERY_FILE_DEST='$newfra';\"|sqlplus -s '/ as sysdba'"
+[ $? -ne 0 ] && {
+  alert "Could not alter the database - aborting."
+  textbox "$SPOOLFILE"
+  abort
+}
+yesno "If there where no errors, we can continue. Should we (y/n)?"
+[ $? -ne 0 ] && abort
+
+#-----------------------------------------------------------[ Moving files ]---
+WINTITLE="Step 3/$steps: Moving files"
+waitmessage "Moving the files from the old FRA to the new one..."
+oldfra=`echo $oldfra|sed 's/ /\\\ /'`
+newfra=`echo $newfra|sed 's/ /\\\ /'`
+runcmd "mv $oldfra/* $newfra"
+[ $? -ne 0 ] && {
+  alert "There were errors on moving the files. Please check the following list carefully:"
+  textbox "$SPOOLFILE"
+}
+yesno "If there where no errors, we can continue. Should we (y/n)?"
+[ $? -ne 0 ] && abort
+
+#-------------------------------------------------------[ Updating catalog ]---
+WINTITLE="Step 4/$steps: Updating catalog/controlfile"
+message "Now we must update our 'catalog' (controlfile) with the changed
+        location. Therefore we first unregister the old one, and then register
+        the new - so do not get a shock and think all your files are gone, as
+        it may look like this at first (since RMAN looks at the old location)."
+waitmessage "Unregistering the old location now..."
+cat ${BINDIR}/rman.crosscheck>$TMPFILE
+cat ${BINDIR}/rman.cleanup_expired_doit>>$TMPFILE
+echo exit >> $TMPFILE
+runcmd "${RMANCONN} <$TMPFILE | tee -a $LOGFILE" "$TMPFILE"
+[ $? -ne 0 ] && {
+  alert "Seems there have been some errors on unregistering the old location. Please check the following list:"
+  textbox "$SPOOLFILE"
+  yesno "Continue nevertheless?"
+  [ $? -ne 0 ] && abort
+}
+
+waitmessage "Registering the new location..."
+echo "CATALOG RECOVERY AREA NOPROMPT;">$TMPFILE
+echo "exit">>$TMPFILE
+runcmd "${RMANCONN} <$TMPFILE | tee -a $LOGFILE" "$TMPFILE"
+[ $? -ne 0 ] && {
+  alert "Seems there have been some errors on registering the old location. Please check the following list:"
+  textbox "$SPOOLFILE"
+} || {
+  message "${blue}Looks like there have been no errors - so you successfully moved your FRA to the new location. Congratulations!"
+}

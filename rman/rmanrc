@@ -1,6 +1,9 @@
 LOGDIR=/local/database/a01/${ORACLE_SID}/dump/log
 TMPFILE=/tmp/rman.$$
+SPOOLFILE=/tmp/rman_spool.$$
 TEMPTS_NAME="TEMP"
 TEMPTS_FILE="/local/database/a01/${ORACLE_SID}/dbf/temp01.dbf"
 TEMPTS_SIZE="512 M"
 TEMPTS_AUTOEXTEND="OFF"
+USEDIALOG=1
+TIMEOUT=3600
