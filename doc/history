@@ -17,6 +17,9 @@ v0.2.4
 * rman.sh: config check (RMAN DB config) is no longer run on each call regardless
   of parameters - but only if jobs are called using that information
 + rman.sh: cleanup_obsolete now also obeys the --all option
++ rman.sh: Now we first make sure the rman and sqlplus utilities are found in
+  the path before executing anything (to avoid stupid errors)
++ rman.sh: Added disclaimer (only shown on first execution of rman.sh)
 
 v0.2.3 (05.02.2008)
 -------------------

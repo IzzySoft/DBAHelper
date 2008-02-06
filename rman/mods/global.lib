@@ -50,3 +50,24 @@ function readpass {
   pass2=$res
   [ "$pass1" != "$pass2" ] && readpass "Passwords are not identical.\n$1"
 }
+
+#-------------------------------------------------------------[ Disclaimer ]---
+function disclaimer() {
+  if [ -e "disclaimer.txt" ]; then
+    DISCLAIM="disclaimer.txt"
+  elif [ -e "doc/disclaimer.txt" ]; then
+    DISCLAIM="doc/disclaimer.txt"
+  else
+    message "DISCLAIMER\n==========\n
+            \nThis software is protected by the GNU Public License (GPL) - which
+            means a.o. it comes to you free of charge. But it also means it comes
+            \"AS IS\", i.e. WITHOUT ANY WARRANTY (see §§11 & 12 of the GPL document,
+            which is usually shipped along with the software in a file usually
+            named something like \"License\"). Again: Neither the programmer nor
+            the vendor will be responsible for any kind of damage caused by this
+            software - explicitly or implicitely - if not explicitly stated so
+            somewhere else. You use this software completly ON YOUR OWN RISK."
+    return 0
+  fi
+  textbox "$DISCLAIM"
+}

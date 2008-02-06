@@ -177,6 +177,12 @@ done
   }
 }
 
+#-------------------------------------------------------------[ Disclaimer ]---
+[ -z "$DISCLAIMER" ] && {
+  disclaimer
+  echo "DISCLAIMER=DONE">>${BINDIR}/rmanrc
+}
+
 #---------------------------------------[ check for the config file to use ]---
 [ -z "$CONFIG" ] && {
   if [ -e $BINDIR/rman_$ORACLE_SID.conf ]; then
