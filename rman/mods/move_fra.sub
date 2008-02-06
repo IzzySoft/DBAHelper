@@ -13,7 +13,7 @@ newfra=$res
 [ ! -d "$newfra" ] && {
   yesno "You specified '$newfra' as new location. This directory does not exist. Create it?"
   [ $? -ne 0 ] && {
-    say "${red}Sorry - in this case we cannot do anything for you.$NC"
+    alert "${red}Sorry - in this case we cannot do anything for you.$NC"
     finito
   }
   runcmd "mkdir -p \"$newfra\""
