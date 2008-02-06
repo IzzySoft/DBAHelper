@@ -183,40 +183,43 @@ fi
   echo exit >>$TMPFILE
 }
 
-#--------------------------------------[ Check if configuration has to run ]---
-[ $ALLDBS -eq 0 ] && runconfig $CONFIGUREOPTS
-
 #==============================================================[ Say Hello ]===
 case "$CMD" in
   create_standby)
     BACKTITLE="RMan Wrapper: Create Standby Database"
+    runconfig $CONFIGUREOPTS
     . ${BINDIR}/mods/create_standby.sub
     finito
     ;;
   validate)
     BACKTITLE="RMan Wrapper: Validation"
+    runconfig $CONFIGUREOPTS
     waitmessage "Running Validate..."
     runcmd "${RMANCONN} < $TMPFILE | tee -a $LOGFILE" $TMPFILE "Progress of Validation:"
     finito
     ;;
   crosscheck)
     BACKTITLE="RMan Wrapper: CrossCheck"
+    runconfig $CONFIGUREOPTS
     waitmessage "Cross-Checking files..."
     runcmd "${RMANCONN} < $TMPFILE | tee -a $LOGFILE" $TMPFILE "CrossChecking Progress:"
     finito
     ;;
   backup_daily)
     BACKTITLE="RMan Wrapper: Daily Backup"
+    [ $ALLDBS -eq 0 ] && runconfig $CONFIGUREOPTS
     . ${BINDIR}/mods/backup_daily.sub
     finito
     ;;
   cleanup_expired)
     BACKTITLE="RMan Wrapper: Cleanup expired backups"
+    runconfig $CONFIGUREOPTS
     . ${BINDIR}/mods/cleanup_expired.sub
     finito
     ;;
   cleanup_obsolete)
     BACKTITLE="RMan Wrapper: Cleanup obsolete backups"
+    runconfig $CONFIGUREOPTS
     . ${BINDIR}/mods/cleanup_obsolete.sub
     finito
     ;;
@@ -333,6 +336,7 @@ case "$CMD" in
     ;;
   force_clean)
     BACKTITLE="RMan Wrapper: Force Cleanup"
+    runconfig $CONFIGUREOPTS
     . ${BINDIR}/mods/force_clean.sub
     finito
     ;;

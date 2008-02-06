@@ -27,17 +27,18 @@ else
     [ -f "$cfg" ] && {
       SID=`echo $cfg|sed 's/.*rman_\(.*\)\.conf/\1/g'`
       WINTITLE="$SID"
-      waitmessage "Creating backup for $SID..."
       export ORACLE_SID=$SID
       setconfig $SID
       runconfig
       mscript
+      waitmessage "Creating backup for $SID..."
       runcmd "${RMANCONN} < $TMPFILE | tee -a $LOGFILE"
       FOUNDCONF=$FOUNDCONF+1
     }
   done
 #--------------[ No rman_ORACLE_SID.conf found - run for default rman.conf ]---
   [ $FOUNDCONF -eq 0 ] && {
+    runconfig
     waitmessage "Creating backup for $ORACLE_SID..."
     mscript
     runcmd "${RMANCONN} < $TMPFILE | tee -a $LOGFILE"

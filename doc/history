@@ -14,6 +14,8 @@ v0.2.4
   rman*.conf file
 + rman.sh: create_standby now also creates the init.ora files and transfers the
   copy to the standby
+* rman.sh: config check (RMAN DB config) is no longer run on each call regardless
+  of parameters - but only if jobs are called using that information
 
 v0.2.3 (05.02.2008)
 -------------------
