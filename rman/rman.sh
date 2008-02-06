@@ -162,6 +162,21 @@ done
 [ -z "$USEDIALOG" ] && USEDIALOG=0
 . ${BINDIR}/mods/global.lib
 
+#--------------------------------------------------[ Check the environment ]---
+[ -z "`which rman`" -o -z "`which sqlplus`" ] && {
+  [ -n "$ORACLE_HOME" ] && export PATH=$ORACLE_HOME/bin:$PATH
+  [ -z "`which rman`" -o -z "`which sqlplus`" ] && {
+    BACKTITLE="RMan Wrapper"
+    message "${red}Could not find the rman and/or sqlplus executable!$NC
+            \nPlease verify that you are on the machine where your database software
+            is installed and your database is running on. If so, also check your
+            environment settings - escpecially that you correctly setup your
+            \$ORACLE_HOME and \$PATH variables (the latter one must include the
+            Oracle binaries path, i.e. \$ORACLE_HOME/bin)."
+    abort
+  }
+}
+
 #---------------------------------------[ check for the config file to use ]---
 [ -z "$CONFIG" ] && {
   if [ -e $BINDIR/rman_$ORACLE_SID.conf ]; then
