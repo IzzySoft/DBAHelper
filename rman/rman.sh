@@ -25,6 +25,8 @@ CONFIGSTATEFILE="~/.rman_configured"
 
 #-----------------------------------------------------------[ Display help ]---
 function help {
+  local red='\e[0;31m'
+  local NC='\e[0m'
   SCRIPT=${0##*/}
   echo
   echo "============================================================================"
@@ -57,7 +59,7 @@ function help {
   echo "     -q Be quiet (repeat up to 3 times)"
   echo "     -r <ORACLE_SID/Connection String for Catalog DB (Repository)>"
   echo "     -u <username>"
-  echo "     --all              Only for backup_daily: All databases (checked by"
+  echo "     --all              backup_daily/cleanup_obsolete: All databases (checked by"
   echo "                        existing rman_\$ORACLE_SID.conf files)"
   echo "     --dryrun		Don't do anything, just show what would be done"
   echo "     --force-configure	Force the configure script to run"
@@ -65,6 +67,8 @@ function help {
   echo -e "     --yestoall		Assume 'yes' to all questions. ${red}Use with care!$NC"
   echo "  Example: Do the daily backup, using the config file /etc/dummy.conf:"
   echo "    ${SCRIPT} backup_daily -c /etc/dummy.conf"
+  echo "  The same for a Cron job (ask no questions, make no output):"
+  echo "    ${SCRIPT} backup_daily -c /etc/dummy.conf -q -q -q --yestoall"
   echo "  Example: Restore local DB using catalog:"
   echo "    ${SCRIPT} restore_full -r catman/catpass@catdb"
   echo
@@ -219,7 +223,6 @@ case "$CMD" in
     ;;
   cleanup_obsolete)
     BACKTITLE="RMan Wrapper: Cleanup obsolete backups"
-    runconfig $CONFIGUREOPTS
     . ${BINDIR}/mods/cleanup_obsolete.sub
     finito
     ;;

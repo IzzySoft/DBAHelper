@@ -16,6 +16,7 @@ v0.2.4
   copy to the standby
 * rman.sh: config check (RMAN DB config) is no longer run on each call regardless
   of parameters - but only if jobs are called using that information
++ rman.sh: cleanup_obsolete now also obeys the --all option
 
 v0.2.3 (05.02.2008)
 -------------------
