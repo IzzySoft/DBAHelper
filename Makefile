@@ -14,6 +14,7 @@ install: installdirs
 	$(INSTALL) -c -p -m 750 globalconf $(datadir)
 	$(INSTALL) -c -p -m 754 configure $(datadir)
 	$(INSTALL_DATA) -c -p rman/rman* $(datadir)/rman
+	$(INSTALL_DATA) -c -p rman/mods/* $(datadir)/rman/mods
 	chmod 754 $(datadir)/rman/rman.sh
 	$(INSTALL_DATA) -c -p doc/html/* $(docdir)/html
 	$(INSTALL_DATA) -c -p doc/history $(docdir)
@@ -23,7 +24,7 @@ install: installdirs
 
 installdirs:
 	mkdir -p $(docdir)/html
-	mkdir -p $(datadir)/rman
+	mkdir -p $(datadir)/rman/mods
 
 uninstall:
 	rm -rf $(datadir)
