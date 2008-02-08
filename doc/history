@@ -20,8 +20,9 @@ v0.2.4
 + rman.sh: Now we first make sure the rman and sqlplus utilities are found in
   the path before executing anything (to avoid stupid errors)
 + rman.sh: Added disclaimer (only shown on first execution of rman.sh)
-+ rman.sh: create_standby now also can create the tnsnames.ora entry to point to
-  the standby database if necessary
++ rman.sh: create_standby now also can create the tnsnames.ora entry on both,
+  the primary and standby host, plus mentions the optional entry for the
+  listener.ora
 
 v0.2.3 (05.02.2008)
 -------------------

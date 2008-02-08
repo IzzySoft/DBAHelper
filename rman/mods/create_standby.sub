@@ -45,7 +45,6 @@ function step_2() {
   done
   readval "Please enter the TNS name of the standby database:"
   tnsname=$res
-  readpass "SYS password on the Standby DB:"
   # Test Oracle Net for specified standby tns name
   dummy=`tnsping $tnsname`
   [ $? -ne 0 ] && {
@@ -67,12 +66,33 @@ function step_2() {
       abort
     }
   }
+  readpass "SYS password on the Standby DB:"
   stbunique="${ORACLE_SID}2"
   readval "The standby database needs a unique name to distinguish it from the master. Please enter the unique name to use ($stbunique):"
   [ -n "$res" ] && stbunique=$res
   mastertns=$ORACLE_SID
   readval "Please enter the TNS name for the primary database, i.e. how it can be reached from the standby system ($mastertns):"
   [ -n "$res" ] && mastertns=$res
+  tnsentry="$mastertns =(DESCRIPTION = (ADDRESS = (PROTOCOL = TCP) (Host = `hostname`) (Port = 1521)) (CONNECT_DATA = (SID = $ORACLE_SID) ))"
+  yesno "Did you already setup your tnsnames.ora on the standby host, so the
+         primary database can be reached from there via Oracle Net?"
+  [ $? -ne 0 ] && {
+    yesno "This is how the tnsnames.ora entry should look like:\n
+           \n  $tnsentry\n\nShall we add it to the standby hosts $ORACLE_HOME/network/admin/tnsnames.ora?"
+    [ $? -eq 0 ] && {
+      ssh $remotehost "echo -e \"\n$tnsentry\" >> $ORACLE_HOME/network/admin/tnsnames.ora"
+      [ $? -ne 0 ] && {
+        alert "There was an error updating the tnsnames.ora on the standby host. Please update it manually before proceeding here!"
+      }
+    }
+  }
+  lsnrentry="(SID_DESC = (SID_NAME = $ORACLE_SID) (ORACLE_HOME = $ORACLE_HOME))"
+  message "You also may need to update your $ORACLE_HOME/network/admin/listener.ora
+           on both the primary and standby host, to make the databases known to
+           the respective listener. The entry should look like this:\n
+           \n$lsnrentry\n
+           \nand should be added to the SID_LIST_<listenername> block. This is
+           not mandatory but recommended. You may add this entry now or later."
   #----------------------------------[ (temporary) Filenames for init.oras ]---
   stdbyini="init$ORACLE_SID.stdby"
   masterini="init$ORACLE_SID.master"
