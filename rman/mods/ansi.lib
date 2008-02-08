@@ -9,6 +9,7 @@ trap 'echo; exit' INT TERM
 if [ -n "${TERM}" ]; then
   red='\e[1;35;44m'
   blue='\e[0;37;44m'
+  green='\e[0;32;44m'
   blink='\E[5m'
 #  NC='\e[0m'              # No Color
   NC="$blue"

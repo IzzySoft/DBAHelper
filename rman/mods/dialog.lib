@@ -5,6 +5,8 @@ SHADOW=0
 [ $SILENT -eq 0 ] && SILENT=1
 
 red='\Z1'
+green='\Z2'
+blue='\Z4'
 blink=''
 NC='\Zn'
 

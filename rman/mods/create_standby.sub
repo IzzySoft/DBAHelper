@@ -3,8 +3,8 @@
 function step_1() {
   WINTITLE="Step 1/$STEPS: Preparations"
   text="In order to create a standby database, we first need some data. Please make sure that:\n
-- you run this script on the host of your PRIMARY database\n
-- your primary database is up and running (opened or mounted)\n
+- you run this script on the host of your PRIMARY database as user oracle\n
+- SSH is setup such that the oracle user directly can connect the standby system\n
 - the directory structure is the same on both databases\n
 - on the host of your standby database, ALL necessary directories (for datafiles, logs, etc) are created and have the correct permissions\n
 \n
@@ -57,7 +57,7 @@ function step_2() {
       alert "We cannot continue without that entry. Please make sure you setup everything accordingly, and then try again."
       abort
     }
-    echo -e "\n$tnsentry">>$ORACLE_HOME/network/admin/tnsnames.ora
+    runcmd "echo -e \"\n$tnsentry\">>$ORACLE_HOME/network/admin/tnsnames.ora"
     dummy=`tnsping $tnsname`
     [ $? -ne 0 ] && {
       alert "We still cannot reach the remote listener. Make sure you provided
@@ -67,6 +67,7 @@ function step_2() {
     }
   }
   readpass "SYS password on the Standby DB:"
+  syspwd="$res"
   stbunique="${ORACLE_SID}2"
   readval "The standby database needs a unique name to distinguish it from the master. Please enter the unique name to use ($stbunique):"
   [ -n "$res" ] && stbunique=$res
@@ -80,7 +81,7 @@ function step_2() {
     yesno "This is how the tnsnames.ora entry should look like:\n
            \n  $tnsentry\n\nShall we add it to the standby hosts $ORACLE_HOME/network/admin/tnsnames.ora?"
     [ $? -eq 0 ] && {
-      ssh $remotehost "echo -e \"\n$tnsentry\" >> $ORACLE_HOME/network/admin/tnsnames.ora"
+      runcmd "ssh $remotehost \"echo -e '$tnsentry' >> $ORACLE_HOME/network/admin/tnsnames.ora\""
       [ $? -ne 0 ] && {
         alert "There was an error updating the tnsnames.ora on the standby host. Please update it manually before proceeding here!"
       }
@@ -137,6 +138,7 @@ ENDNEW
   message "The new init.ora files have been written to the desired destination ($masterini / $stdbyini). Please check if they are correct, and apply changes when necessary. After that, you can proceed (not before)."
 }
 
+#=================================================[ Step 3: Forced Logging ]===
 # Forced Logging
 function step_3 {
   WINTITLE="Step 3/$STEPS: Force Logging"
@@ -152,6 +154,7 @@ function step_3 {
   esac
 }
 
+#========================================================[ Step 4: Backups ]===
 # Make sure we have all backups + controlfile available
 function step_4 {
   WINTITLE="Step 4/$STEPS: Backups"
@@ -180,6 +183,7 @@ function step_4 {
   esac
 }
 
+#===========================================[ Step 5: Copy data to Standby ]===
 # Copy files to standby host
 function step_5 {
   WINTITLE="Step 5/$STEPS: Copy data to target host"
@@ -202,14 +206,16 @@ function step_5 {
   esac
 }
 
+#================================================[ Step 6: Database Status ]===
 # Last hints about availability master/client (mount/nomount)
 function step_6 {
   WINTITLE="Step 6/$STEPS: Get databases ready"
-  message "Now, please make sure that:\n- you started the (not yet existing)
-           standby database NOMOUNT using the adjusted init.ora\n- the backup
-	   files are LOCALLY available on the standby machine (you may need to
-	   copy them there)\n- you can reach your standby database from the
-	   primary host via Oracle Net (configured in tnsnames.ora / Oracle Names / ...)\n"
+  message "Now, we need to make sure that:\n
+- the standby database is started NOMOUNT using the adjusted init.ora\n
+- the backup files are LOCALLY available on the standby machine\n
+- you can reach your standby database from the primary host via Oracle Net\n
+\nThe script will now automatically check the database state - for the backups
+you have to guarantee."
   [ $? -ne 0 ] && abort
   #---------------------------------------[ Test availibility of databases ]---
   msg="Checking whether the databases are prepared..."
@@ -218,7 +224,7 @@ function step_6 {
       select status from v\\$instance;\"|sqlplus -s '/ as sysdba'`"
   res=`echo $res|awk '{ print $NF }'`
   if [ "$res" == "OPEN" -o "$res" == "MOUNTED" ]; then
-    msg="$msg\n* Primary database is $res - OK"
+    msg="$msg\n* Primary database is $res - ${green}OK${NC}."
     waitmessage "$msg"
   else
     yesno "Primary database must be open or at least mounted! Please start it up before you continue - or the process will fail!\n
@@ -229,7 +235,7 @@ function step_6 {
         select status from v\\$instance;\"|sqlplus -s '/ as sysdba'`"
     res=`echo $res|awk '{ print $NF }'`
     if [ "$res" == "MOUNTED" ]; then
-      msg="$msg\n* Primary database is $res - OK"
+      msg="$msg\n* Primary database is $res - ${green}OK${NC}."
       waitmessage "$msg"
     else
       alert "Could not startup the primary database!"
@@ -237,24 +243,33 @@ function step_6 {
     fi
   fi
   res="`echo \"set head off
-      select status from v\\$instance;\"|sqlplus -s 'sys/$syspwd@$tnsname as sysdba'`"
+      select status from v\\$instance;\"|sqlplus -s sys/$syspwd@$tnsname as sysdba`"
   res=`echo $res|awk '{ print $NF }'`
-  if [ "$res" == "STARTED" ]; then
-    msg="$msg\n* Standby database is $res without mounting - OK$NC"
-  else
-    yesno "Standby database is not yet started!\nShall we bring it up to NOMOUNT state now?"
-    [ $? -ne 0 ] && abort
-    runcmd "echo \"startup nomount\"|sqlplus -s 'sys/$syspwd@$tnsname as sysdba'"
-    res="`echo \"set head off
-        select status from v\\$instance;\"|sqlplus -s 'sys/$syspwd@$tnsname as sysdba'`"
-    res=`echo $res|awk '{ print $NF }'`
-    if [ "$res" == "STARTED" ]; then
-      msg="$msg\n* Standby database is $res without mounting - OK$NC"
-    else
-      alert "Could not prepare the standby database!"
+  case "$res" in
+    STARTED)
+      msg="$msg\n* Standby database is STARTED without mounting - ${green}OK$NC.";;
+    MOUNTED|OPEN)
+      alert "Your standby database is already in state \"$res\"!\nEither you
+             specified the wrong database, or you already created your standby
+             database. In both cases, there is nothing to do here."
       abort
-    fi
-  fi
+      ;;
+    *)
+      yesno "Looks like your Standby database is not yet started.\nShall we bring it up to NOMOUNT state now?"
+      [ $? -ne 0 ] && abort
+      runcmd "echo \"startup nomount\"|sqlplus -s 'sys/$syspwd@$tnsname as sysdba'"
+      res="`echo \"set head off
+          select status from v\\$instance;\"|sqlplus -s sys/$syspwd@$tnsname as sysdba`"
+      res=`echo $res|awk '{ print $NF }'`
+      if [ "$res" == "STARTED" ]; then
+        msg="$msg\n* Standby database is $res without mounting - ${green}OK$NC."
+      else
+        alert "Could not prepare the standby database!"
+        abort
+      fi
+      ;;
+  esac
+  message "$msg"
 }
 
 # Creating the standby database
@@ -281,6 +296,12 @@ function step_7 {
        ;;
     *) abort;;
   esac
+  message "Congratulations - you are done! Do not forget to update your primary
+           databases configuration. An updated init.ora was stored in $masterini.
+           You can either replace your $ORACLE_HOME/dbs/init${ORACLE_SID}.ora
+           with this file - or, if your database is using a Server Parameter File
+           (SPFILE), check at the end of $masterini for the new/changed settings
+           to apply them via SQL*Plus using the related ALTER..SCOPE=both commands."
 }
 
 STEPS=7
