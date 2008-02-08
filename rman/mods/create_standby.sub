@@ -38,14 +38,34 @@ function step_2() {
     message "Could not find the init.ora file of your primary instance. Please make sure yourself that you prepared this file for both, the primary and the standby instance accordingly."
   }
   #-----------------------------------------[ Query standby data from user ]---
+  res=""
+  while [ -z "$res" ]; do
+   readval "Hostname (or IP) of the remote host:"
+   remotehost=$res
+  done
   readval "Please enter the TNS name of the standby database:"
   tnsname=$res
   readpass "SYS password on the Standby DB:"
   # Test Oracle Net for specified standby tns name
   dummy=`tnsping $tnsname`
   [ $? -ne 0 ] && {
-      alert "The specified database is not available via Oracle Net - aborting!"
+    tnsentry="$tnsname =(DESCRIPTION = (ADDRESS = (PROTOCOL = TCP) (Host = $remotehost) (Port = 1521)) (CONNECT_DATA = (SID = $ORACLE_SID) ))"
+    yesno "${red}The specified database is not available via Oracle Net!$NC\nThis may
+           be because you did not yet setup an entry in your tnsnames.ora for
+	   it yet. This entry should look like this:\n
+	   \n  $tnsentry\n\nShall we add that entry to your $ORACLE_HOME/network/admin/tnsnames.ora now?"
+    [ $? -ne 0 ] && {
+      alert "We cannot continue without that entry. Please make sure you setup everything accordingly, and then try again."
       abort
+    }
+    echo -e "\n$tnsentry">>$ORACLE_HOME/network/admin/tnsnames.ora
+    dummy=`tnsping $tnsname`
+    [ $? -ne 0 ] && {
+      alert "We still cannot reach the remote listener. Make sure you provided
+             the correct data, and the listener on the remote machine has been
+	     started up - then retry. Right now, we abort."
+      abort
+    }
   }
   stbunique="${ORACLE_SID}2"
   readval "The standby database needs a unique name to distinguish it from the master. Please enter the unique name to use ($stbunique):"
@@ -149,11 +169,6 @@ function step_5 {
       1) message "Do not forget to make the backup available on the standby host!";;
       0) srcdir="`echo \"set head off
                 select value from v\\$parameter where name='db_recovery_file_dest';\"|sqlplus -s '/ as sysdba'|sed -n '/^\/.*/p'`"
-         res=""
-         while [ -z "$res" ]; do
-           readval "Hostname of the remote host:"
-           remotehost=$res
-         done
          waitmessage "Copying the parameter file..."
          runcmd "scp $stdbyini $remotehost:${ORACLE_HOME}/dbs/init${ORACLE_SID}.ora"
          [ $? -ne 0 ] && alert "Failed to copy $stdbyini to $remotehost:${ORACLE_HOME}/dbs/init${ORACLE_SID}.ora!\nPlease make sure to put the file to the standby machines ORACLE_HOME/dbs directory as init${ORACLE_SID}.ora"
