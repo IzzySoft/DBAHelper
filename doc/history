@@ -3,7 +3,7 @@ $Id$
 History for DBAHelper
 =====================
 
-v0.2.4
+v0.2.4 (10.02.2008)
 -------------------
 * completely restructured the RMAN framework for a better UI handling. This uses
   the "dialog" tool if available (package "dialog" with most Linux distros),
