@@ -38,7 +38,7 @@ function step_2() {
     [ $? -eq 0 ] && {
       runcmd "cp $initora ${initora}.`date +%Y-%m-%d`.$$"
       echo "CREATE PFILE FROM SPFILE;">$TMPFILE.sql
-      runcmd "sqlplus / as sysdba <$TMPFILE.sql | tee -a $LOGFILE" "$TMPFILE"
+      runcmd "sqlplus / as sysdba <$TMPFILE.sql | tee -a $LOGFILE" "$TMPFILE.sql"
       rm -f $TMPFILE.sql
     }
   }
@@ -286,7 +286,7 @@ you have to guarantee."
   message "$msg"
 }
 
-# Creating the standby database
+#==================================[ Step 7: Creating the standby database ]===
 function step_7 {
   WINTITLE="Step 7/$STEPS: Creating the Standby Database"
   yesno "Now we can create the standby database. Ready?"
@@ -310,15 +310,67 @@ function step_7 {
        ;;
     *) abort;;
   esac
-  message "Congratulations - you are done! Do not forget to update your primary
-           databases configuration. An updated init.ora was stored in $masterini.
-           You can either replace your $ORACLE_HOME/dbs/init${ORACLE_SID}.ora
-           with this file - or, if your database is using a Server Parameter File
-           (SPFILE), check at the end of $masterini for the new/changed settings
-           to apply them via SQL*Plus using the related ALTER..SCOPE=both commands."
 }
 
-STEPS=7
+#======================================[ Step 8: Updating primary database ]===
+function step_8() {
+  WINTITLE="Step 8/$STEPS: Updating the primary Instance"
+  if [ -e $spfile ]; then
+    SCOPE="both";
+  else
+    SCOPE="memory";
+  fi
+  echo "ALTER SYSTEM SET LOG_ARCHIVE_DEST_1='SERVICE=$tnsname VALID_FOR=(ALL_LOGFILES,PRIMARY_ROLE)' SCOPE=$SCOPE;">$TMPFILE.sql
+  echo "ALTER SYSTEM SET STANDBY_FILE_MANAGEMENT=AUTO SCOPE=$SCOPE;">>$TMPFILE.sql
+  echo "ALTER SYSTEM SET STANDBY_ARCHIVE_DEST='LOCATION=USE_DB_RECOVERY_FILE_DEST' SCOPE=$SCOPE;">>$TMPFILE.sql
+  echo "ALTER SYSTEM SET FAL_SERVER=$tnsname SCOPE=$SCOPE;">>$TMPFILE.sql
+  echo "ALTER SYSTEM SET FAL_CLIENT=$mastertns SCOPE=$SCOPE;">>$TMPFILE.sql
+  echo "ALTER SYSTEM SET REMOTE_LOGIN_PASSWORD_FILE=EXCLUSIVE SCOPE=$SCOPE;">>$TMPFILE.sql
+  message "Now we need to update your primary database - amongst others, to tell it
+           to feed the new created standby database. The next box will show you the
+           commands we are about to execute - and then you are asked whether to
+           apply them. If you decide to not apply them automatically, you will
+           have to do so manually, and may want to copy the commands from that
+           screen - but you will also find the settings at the end of the
+           '$masterini'."
+  textbox "$TMPFILE.sql"
+  yesno "Do you want to apply these changes now?"
+  if [ $? -ne 0 ]; then
+    message "Do not forget to apply the changes manually, or your standby database will not receive any data!"
+  else
+    runcmd "sqlplus / as sysdba <$TMPFILE.sql | tee -a $LOGFILE" "$TMPFILE.sql"
+  fi
+  [ ! -e $spfile ] && {
+    yesno "Your database was not started using a Server Parameter File (SPFILE).
+           This means, even if you applied the changes as suggested, they will
+           be lost after the next restart of your primary database. In order to
+           make them permanent, you need to replace your original '$initora' by
+           the '$masterini' created here.\n
+           \nShall we now backup your '$initora' to '${initora}.$$.`date +%Y-%m-%d`'
+           and then replace it with '$masterini'?"
+    if [ $? -eq 0 ]; then
+      runcmd "cp $initora ${initora}.$$.`date +%Y-%m-%d`"
+      typeset -i rc=$?
+      runcmd "cp $masterini $initora"
+      typeset -i rc2?$?
+      let rc=$rc+$rc2
+      if [ $rc -eq 0 ]; then
+        message "init.ora successfully replaced. On the next restart of your primary
+                 database, the settings will remain."
+      else
+        alert "There have been errors replacing your init.ora!${NC}\nPlease take
+               care you replace/update it manually, so your primary database will
+               continue feeding the standby after a restart."
+      fi
+    else
+      message "Please take care you replace/update it manually, so your primary
+               database will continue feeding the standby after a restart."
+    fi
+  }
+  message "Congratulations - you are done! Good luck with your new Standby Database!"
+}
+
+STEPS=8
 step_1
 step_2
 step_3
@@ -326,5 +378,6 @@ step_4
 step_5
 step_6
 step_7
+step_8
 
 finito

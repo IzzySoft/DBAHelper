@@ -80,6 +80,7 @@ function help {
 #=======================================================[ Helper functions ]===
 function cleanup() {
   rm -f $TMPFILE
+  rm -f $TMPFILE.sql
   rm -f $SPOOLFILE
 }
 

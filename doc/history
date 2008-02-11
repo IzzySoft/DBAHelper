@@ -6,7 +6,9 @@ History for DBAHelper
 v0.2.5
 -------------------
 + rman.sh: create_standby now first checks whether SPFILE is used and (if so)
-  offers to first create PFILE from this to proceed with
+  offers to first create PFILE from this to proceed with.
++ rman.sh: create_standby now also updates the primary database at the end of
+  the process (to feed the standby etc.)
 
 v0.2.4 (10.02.2008)
 -------------------
