@@ -9,6 +9,8 @@ v0.2.5
   offers to first create PFILE from this to proceed with.
 + rman.sh: create_standby now also updates the primary database at the end of
   the process (to feed the standby etc.)
++ rman.sh: new command "switchover" to perform the switchover between primary
+  and standby database
 
 v0.2.4 (10.02.2008)
 -------------------

@@ -51,6 +51,7 @@ function help {
   echo "     restore_full       Restore the complete DB from backup"
   echo "     restore_ts         Restore a single tablespace from backup"
   echo "     restore_temp       Restore (Re-Create) the TEMP tablespace"
+  echo "     switchover		Perform a SwitchOver between primary/standby"
   echo "     validate           Validate (online) database files"
   echo "  Options:"
   echo "     -c <alternate ConfigFile>"
@@ -215,6 +216,11 @@ case "$CMD" in
     BACKTITLE="RMan Wrapper: Create Standby Database"
     runconfig $CONFIGUREOPTS
     . ${BINDIR}/mods/create_standby.sub
+    finito
+    ;;
+  switchover)
+    BACKTITLE="RMan Wrapper: SwitchOver between Standby and Primary"
+    . ${BINDIR}/mods/switchover.sub
     finito
     ;;
   validate)

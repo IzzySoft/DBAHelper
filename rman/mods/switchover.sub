@@ -1,0 +1,80 @@
+
+#===========================================[ Step 1: Introductional hints ]===
+function step_1() {
+  WINTITLE="Step 1/$STEPS: Preparation"
+  yesno "You are about to perform a SwitchOver - i.e. your current standby
+         database shall be opened (and become the new primary), while your
+         primary database will be the new standby system. Please make sure
+         that you execute this script on the current primary system.
+         \nShall we start the process now?"
+  [ $? -ne 0 ] && abort
+  readval "Please specify the primary databases ORACLE_SID ($ORACLE_SID)"
+  [ -n "$res" ] && export ORACLE_SID=$res
+  readval "Please specify the TNSName of the Standby database"
+  [ -z "$res" ] && {
+    alert "You did not specify a value for the standby systems TNSName - so there is nothing we can do for you."
+    abort
+  }
+  tnsname=$res
+  dummy=`tnsping $tnsname`
+  [ $? -ne 0 ] && {
+    alert "Cannot reach the standby database via Oracle Net!"
+    abort
+  }
+  readpass "Please specify the SYS password for the standby system"
+  syspwd="$res"
+  yesno "Last chance to abort: Are you sure you want to do the SwitchOver now?"
+  [ $? -ne 0 ] && abort
+}
+
+#======================================[ Step 2: Prepare DBs to SwitchOver ]===
+function step_2() {
+  WINTITLE="Step 2/$STEPS: Preparing databases to SwitchOver"
+  echo "SHUTDOWN IMMEDIATE">$TMPFILE
+  echo "STARTUP RESTRICT">>$TMPFILE
+  echo "ALTER DATABASE COMMIT TO SWITCHOVER TO STANDBY WITH SESSION SHUTDOWN;">>$TMPFILE
+  runcmd "sqlplus / as sysdba <$TMPFILE | tee -a $LOGFILE" "$TMPFILE" "Preparing primary DB for SwitchOver"
+  [ $? -ne 0 ] && {
+    yesno "${red}Looks like there was an error preparing the primary DB for SwitchOver!${NC}\nProceed anyway?"
+    [ $? -ne 0 ] && abort
+  }
+  echo "ALTER DATABASE COMMIT TO SWITCHOVER TO PRIMARY;">$TMPFILE
+  runcmd "sqlplus sys/$syspwd@tnsname <$TMPFILE | tee -a $LOGFILE" "$TMPFILE" "Preparing standby DB for SwitchOver"
+  [ $? -ne 0 ] && {
+    yesno "${red}Looks like there was an error preparing the standby DB for SwitchOver!${NC}\nProceed anyway?"
+    [ $? -ne 0 ] && abort
+  }
+}
+
+#======================================[ Step 3: Performing the SwitchOver ]===
+function step_3() {
+  WINTITLE="Step 3/$STEPS: Performing the SwitchOver"
+  echo "SHUTDOWN IMMEDIATE">$TMPFILE
+  echo "STARTUP MOUNT">>$TMPFILE
+  echo "ALTER DATABASE RECOVER MANAGED STANDBY DATABASE DISCONNECT;">>$TMPFILE
+  runcmd "sqlplus / as sysdba <$TMPFILE | tee -a $LOGFILE" "$TMPFILE" "Converting old primary database to standby"
+  [ $? -ne 0 ] && {
+    yesno "${red}Looks like there was an error converting the previous primary
+           DB into a standby!${NC}\nUnfortunately, we already reached the
+           point of no return - so you have to fix the error later. Shall we
+           meanwhile proceed to open the new primary, so you can startup your
+           applications again?"
+    [ $? -ne 0 ] && abort
+  }
+  echo "ALTER DATABASE OPEN">$TMPFILE
+  runcmd "sqlplus sys/$syspwd@tnsname <$TMPFILE | tee -a $LOGFILE" "$TMPFILE" "Opening old standby database as new primary"
+  [ $? -ne 0 ] && {
+    alert "Looks like there was an error opening the former standby DB as new
+           primary!${NC}\nPlease consult the logfile ($LOGFILE) for details."
+    [ $? -ne 0 ] && abort
+  }
+  message "If there have been no errors: Congratulations! The SwitchOver was successfully performed."
+}
+
+
+STEPS=3
+step_1
+step_2
+step_3
+
+finito
