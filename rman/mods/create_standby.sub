@@ -27,7 +27,21 @@ If all this conditions are met, press OK - otherwise ESC to abort."
 function step_2() {
   WINTITLE="Step 2/$STEPS: Prepare parameter files"
   #-------------------------------------------------[ Get primary init.ora ]---
+  spfile="$ORACLE_HOME/dbs/spfile$ORACLE_SID.ora"
   initora="$ORACLE_HOME/dbs/init$ORACLE_SID.ora"
+  [ -e "$spfile" ] && {
+    yesno "Found '$spfile' - looks like your database is using a Server Parameter File.
+           Just to make sure we take the latest changes into consideration, you may
+           want to first create a PFILE (init.ora) from this. Before doing so, the
+           current $initora - if there is any - will be backed up and saved as
+           '${initora}.`date +%Y-%m-%d`.$$'. Shall this be done now?"
+    [ $? -eq 0 ] && {
+      runcmd "cp $initora ${initora}.`date +%Y-%m-%d`.$$"
+      echo "CREATE PFILE FROM SPFILE;">$TMPFILE.sql
+      runcmd "sqlplus / as sysdba <$TMPFILE.sql | tee -a $LOGFILE" "$TMPFILE"
+      rm -f $TMPFILE.sql
+    }
+  }
   if [ -e "$initora" ]; then
     yesno "Found '$initora' as possible initialization parameter file of your primary instance. Is this the correct file?"
     [ $? != 0 ] && initora=""
