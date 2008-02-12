@@ -5,6 +5,8 @@ function obsoletize() {
   WINTITLE="Step 1/3: Preparing list of obsolete files [$ORACLE_SID]"
   message "We will now create a list of obsolete files. Please check it and make sure you want to cleanup all of them."
   waitmessage "Preparing obsolete files list..."
+  cat ${BINDIR}/rman.cleanup_obsolete> $TMPFILE
+  echo "exit" >> $TMPFILE
   runcmd "${RMANCONN} < $TMPFILE | tee -a $LOGFILE" "$TMPFILE"
 
   WINTITLE="Step 2/3: Checking list of obsolete files [$ORACLE_SID]"

@@ -1,16 +1,18 @@
 #!/bin/bash
-#BACKTITLE="Demo Script"
-#WINTITLE="Box title"
+# Screen output methods using dialog
+#==========================================================[ Configuration ]===
 SHADOW=0
+[ -z "$SILENT" ] && SILENT=0
 [ $SILENT -eq 0 ] && SILENT=1
 
+#------------------------------------------------------[ Color definitions ]---
 red='\Z1'
 green='\Z2'
 blue='\Z4'
 blink=''
 NC='\Zn'
 
-# Trap handler
+#-----------------------------------------------------------[ Trap handler ]---
 function dabort() {
   rm -f readval.*
   abort
@@ -21,29 +23,27 @@ function dabort() {
 # (for dialog, Ctrl-C seems to be the same as "No", not "ESC")
 trap 'dabort' INT TERM
 
-# Obtain the current window size
-function winsize {
-  win_x=`stty size|awk '{print $2}'`
-  win_y=`stty size|awk '{print $1}'`
-}
-# Set titles if needed
-function titles {
+#================================================================[ Methods ]===
+#---------------------------------------------------[ Set titles if needed ]---
+function titles() {
   local out="dialog --cr-wrap --aspect 20 --colors"
   [ -n "$WINTITLE" ]  && out="$out --title '[ $WINTITLE ]'"
   [ -n "$BACKTITLE" ] && out="$out --backtitle '$BACKTITLE'"
   [ $SHADOW -eq 1 ]   && out="$out --shadow"
   echo $out
 }
-# Display "Please wait..." message
-function waitmessage {
+#------------------[ Display "Please wait..." message (no keypress needed) ]---
+# $1 is the message to display
+function waitmessage() {
   [ $SILENT -eq 3 ] && return 0
   local out=`titles`
   out="$out --colors --infobox '$1' 0 0"
   eval $out
 }
-# Output a message ($1 is the message)
+#-------------------------------------------------------[ Output a message ]---
+# $1 is the message
 # rc: 0 = OK, 1 = Ctrl-C 255 = ESC
-function message {
+function message() {
   if [ $YESTOALL -eq 1 ]; then
     waitmessage "$1"
   else
@@ -52,8 +52,10 @@ function message {
     eval $out
   fi
 }
-# Same for alerts
-function alert {
+#---------------------------------------------------[ Alert message output ]---
+# $1 is the message
+# rc: 0 = OK, 1 = Ctrl-C 255 = ESC
+function alert() {
   if [ $YESTOALL -eq 1 ]; then
     waitmessage "$1"
   else
@@ -62,9 +64,10 @@ function alert {
     eval $out
   fi
 }
-# Output yesno-box
+#-------------------------------------------------------[ Output yesno-box ]---
+# $1 is the message (aka question here)
 # rc: 0 = Yes, 1 = No/Ctrl-C, 255 = ESC
-function yesno {
+function yesno() {
   if [ $YESTOALL -eq 1 ]; then
     waitmessage "$1"
   else
@@ -73,9 +76,11 @@ function yesno {
     eval $out
   fi
 }
-# Ask for input ($1:Text $2:DefaultVal)
-# input is stored in $res ("-" on abort)
-function readval {
+#----------------------------------------------------------[ Ask for input ]---
+# $1:Text
+# $2:DefaultVal
+# input is stored in $res (res="-" on abort)
+function readval() {
   [ $YESTOALL -eq 1 ] && {
     res=""
     return 0
@@ -90,8 +95,10 @@ function readval {
   fi
   rm -f readval.$$
 }
-# Password input
-function password {
+#---------------------------------------------------------[ Password input ]---
+# $1 is the message (aka password question)
+# password is stored in $res
+function password() {
   local out=`titles`
   out="$out --insecure --passwordbox '$1' 0 0 2>readval.$$"
   eval $out
@@ -102,22 +109,50 @@ function password {
   fi
   rm -f readval.$$
 }
-# Display a file
+#---------------------------------------------------------[ Display a file ]---
+# $1 is the name of the file to display
 function textbox() {
   [ $YESTOALL -eq 1 ] && return 0
   local out=`titles`
-  out="$out --textbox "$1" 0 0"
+  out="$out --textbox '$1' 0 0"
   eval $out
 }
-# Display output of executed program inline
-# $1: Filename; $2: Timeout (optional)
+#-------------------[ Display output of executed program in inline tailbox ]---
+# $1: Filename
+# $2: Timeout (optional)
 function tailbox() {
   [ $SILENT -eq 3 ] && return 0
   local out=`titles`
   timeout=$2
   [ -z "$timeout" ] && timeout=$TIMEOUT
   out="$out --timeout $timeout"
-  out="$out --tailbox "$1" 0 0"
+  out="$out --tailbox '$1' 0 0"
   sleep 1
   eval $out
+}
+#------------------------------------------------------------[ Make a menu ]---
+# pass an array of menu options (first element introductional text, followed by
+# triples of entries: Selection, description and help), quoting it as "${array[@]}"
+function menu() {
+  local parm
+  parm=( "$@" )
+  local out=`titles`
+  local item=""
+  local items=""
+  for i in `seq 0 $(( ${#parm[@]} - 1 ))`; do
+    [ $i -eq 0 ] && {
+      continue
+    }
+    items="$items \"${parm[$i]}\""
+  done
+  out="$out --clear --item-help --menu '$1' 0 0 0 $items 2>readval.$$"
+  eval $out
+  rc=$?
+  if [ $rc -eq 0 ]; then
+    res="`cat readval.$$`"
+  else
+    res=""
+  fi
+  rm -f readval.*
+  return $rc
 }

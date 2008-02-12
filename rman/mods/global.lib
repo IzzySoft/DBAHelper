@@ -10,6 +10,15 @@ if [ $USEDIALOG -eq 1 -a $SILENT -lt 2 ]; then
 else
   . ${BINDIR}/mods/ansi.lib
 fi
+
+#-----------------------------------------[ Obtain the current window size ]---
+function winsize {
+  win_x=`stty size|awk '{print $2}'`
+  win_y=`stty size|awk '{print $1}'`
+  typeset i win_x
+  typeset i win_y
+}
+
 #---------------------------------[ Run or display CMD depending on DRYRUN ]---
 # $1 - CMD
 # $2 - Scriptfile to display when in dryrun
@@ -38,6 +47,7 @@ function runcmd {
       cat $2>>$SPOOLFILE
     }
     textbox "$SPOOLFILE"
+    cat /dev/null>$SPOOLFILE
     return 0
   fi
 }

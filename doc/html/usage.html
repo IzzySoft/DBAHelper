@@ -286,7 +286,7 @@
      cleanup obsolete, expired and even orphaned ones - and more. It's syntax
      is quite easy:</p>
      <div align="center"><div class="code" style="width:18em">
-       ./rman.sh &lt;command&gt; [options]
+       ./rman.sh [&lt;command&gt; [options]]
      </div></div><p>
      Starting with version v0.2.4 of the DBAHelper package, the RMAN framework
      has been almost completely reworked. You will notice this immediately after
@@ -299,7 +299,9 @@
      written to logfile, and not attended directly during automated runs), which
      also forces the script back to "plain shell" mode.
   </p><p>
-     So far, the following commands are available:</p>
+     Starting the script without any parameters will enter interactive mode (and
+     display a menu of actions to chose from). So far, the following commands
+     are available:</p>
  </td></tr>
  <tr><td class="text">
   <table align="center" width="95%">
@@ -386,6 +388,8 @@
            different configurations according to e.g. special cases (e.g. for
            different database instances), and use them specifying the corresponding
            config file at the command line.</td></tr>
+   <tr><td class="td_name"><code>-h</code>, <code>--help</code>, <code>-?</code></td>
+       <td class="text">Display help message and exit</td></tr>
    <tr><td class="td_name"><code>-l &lt;logfile&gt;</code></td>
        <td class="text">Use an alternative logfile. To configure the logging
            directory, see inside the script itself for now.</td></tr>

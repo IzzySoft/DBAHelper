@@ -1,8 +1,10 @@
 #!/bin/bash
-#BACKTITLE="Demo Script"
-#WINTITLE="Box title"
+# Screen output methods using plain text + ANSI sequences
+#==========================================================[ Configuration ]===
 SHADOW=0
+[ -z "$SILENT" ] && SILENT=0
 
+#-----------------------------------------------------------[ Trap handler ]---
 trap 'echo; exit' INT TERM
 
 #-----------------------------------------------------------------[ Colors ]---
@@ -15,14 +17,8 @@ if [ -n "${TERM}" ]; then
   NC="$blue"
 fi
 
-# Obtain the current window size
-function winsize {
-  win_x=`stty size|awk '{print $2}'`
-  win_y=`stty size|awk '{print $1}'`
-  typeset i win_x
-  typeset i win_y
-}
-# Set titles if needed
+#================================================================[ Methods ]===
+#---------------------------------------------------[ Set titles if needed ]---
 function titles {
   winsize
   echo -e "$blue "
@@ -38,7 +34,7 @@ function titles {
   echo
   outL="echo -en"
 }
-# Format text for output according to screensize
+#-------------------------[ Format text for output according to screensize ]---
 function textformat {
   msg=$1
   line=""
@@ -58,7 +54,8 @@ function textformat {
   done
   line="${line}$msg"
 }
-# Display "Please wait..." message
+#------------------[ Display "Please wait..." message (no keypress needed) ]---
+# $1 is the message to display
 function waitmessage {
   [ $SILENT -eq 3 ] && return 0
   titles
@@ -66,14 +63,17 @@ function waitmessage {
   outL="$outL '${blue}\n$line$NC'"
   eval $outL
 }
-# Output a message ($1 is the message)
+#-------------------------------------------------------[ Output a message ]---
+# $1 is the message
 # rc: 0 = OK, 1 = Ctrl-C 255 = ESC
 function message {
   [ $SILENT -eq 3 ] && return 0
   waitmessage "$1"
   [ $YESTOALL -eq 0 ] && read res
 }
-# Same for alerts
+#---------------------------------------------------[ Alert message output ]---
+# $1 is the message
+# rc: 0 = OK, 1 = Ctrl-C 255 = ESC
 function alert {
   [ $SILENT -eq 3 ] && return 0
   titles
@@ -82,7 +82,8 @@ function alert {
   eval $outL
   [ $YESTOALL -eq 0 ] && read res
 }
-# Output yesno-box
+#-------------------------------------------------------[ Output yesno-box ]---
+# $1 is the message (aka question here)
 # rc: 0 = Yes, 1 = No/Ctrl-C, 255 = ESC
 function yesno {
   [ $SILENT -lt 3 -o $YESTOALL -eq 0 ] && waitmessage "$1 (y/n) "
@@ -91,8 +92,10 @@ function yesno {
   read -n 1 key
   [ "$key" = "y" -o "$key" = "Y" ]
 }
-# Ask for input ($1:Text $2:DefaultVal)
-# input is stored in $res ("-" on abort)
+#----------------------------------------------------------[ Ask for input ]---
+# $1:Text
+# $2:DefaultVal
+# input is stored in $res (res="-" on abort)
 function readval {
   titles
   textformat "$1"
@@ -100,7 +103,9 @@ function readval {
   eval $outL
   read res
 }
-# Password input
+#---------------------------------------------------------[ Password input ]---
+# $1 is the message (aka password question)
+# password is stored in $res
 function password {
   titles
   textformat "$1"
@@ -108,14 +113,43 @@ function password {
   eval $outL
   read -s res
 }
-# Display a file
+#---------------------------------------------------------[ Display a file ]---
+# $1 is the name of the file to display
 function textbox() {
   [ $SILENT -eq 3 ] && return 0
   titles
   cat "$1"
   read dummy
 }
-# Dummy
+#-------------------[ Display output of executed program in inline tailbox ]---
+# $1: Filename
+# $2: Timeout (optional)
+# for the plain text + ANSI, this is a dummy only
 function tailbox() {
   dummy=1
+}
+#------------------------------------------------------------[ Make a menu ]---
+# pass an array of menu options (first element introductional text, followed by
+# triples of entries: Selection, description and help), quoting it as "${array[@]}"
+function menu() {
+  local parm
+  parm=( "$@" )
+  local out=`titles`
+  local msg=""
+  for i in `seq 0 $(( ${#parm[@]} - 1 ))`; do
+    [ $i -eq 0 ] && {
+      msg="${parm[$i]}"
+      continue
+    }
+    case "$(($i % 3))" in
+      1) msg="$msg\n${parm[$i]}:";;
+      2) msg="${msg} ${parm[$i]}";;
+      3) continue;;
+    esac
+  done
+  readval "$msg\n"
+  rc=$?
+  [ "$res" = "-" ] && res=""
+  [ "$res" = "" ] && return 1
+  return $rc
 }

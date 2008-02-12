@@ -36,7 +36,7 @@ function help {
   echo "Configuration can be done in the files rmanrc (for the script itself) plus"
   echo "rman[_\$ORACLE_SID].conf (database specific). See the manual for details."
   echo ----------------------------------------------------------------------------
-  echo "Syntax: ${SCRIPT} <Command> [Options]"
+  echo "Syntax: ${SCRIPT} [<Command> [Options]]"
   echo "  Commands:"
   echo "     backup_daily       Run the daily backup"
   echo "     block_recover      Recover corrupt block in datafile"
@@ -51,10 +51,10 @@ function help {
   echo "     restore_full       Restore the complete DB from backup"
   echo "     restore_ts         Restore a single tablespace from backup"
   echo "     restore_temp       Restore (Re-Create) the TEMP tablespace"
-  echo "     switchover		Perform a SwitchOver between primary/standby"
   echo "     validate           Validate (online) database files"
   echo "  Options:"
   echo "     -c <alternate ConfigFile>"
+  echo "     -h, --help, -?	Display this help screen and exit"
   echo "     -l <Log File Name>"
   echo "     -p <Password>"
   echo "     -q Be quiet (repeat up to 3 times)"
@@ -210,176 +210,229 @@ fi
   echo exit >>$TMPFILE
 }
 
-#==============================================================[ Say Hello ]===
+#------------------------------------------------------[ Display Main Menu ]---
+function showmenu() {
+  BACKTITLE="RMan Wrapper"
+  WINTITLE="Main Menu"
+  items=("Please select the action to process:"
+         1 "Daily Backup" "Create the \Zbdaily backup\Zn "
+         2 "Validate Backup" "Validate existing backups"
+         3 "Crosscheck" "Check catalog against existing files"
+         4 "Recover" "\ZbRecover\Zn database after a crash (does \Zunot\Zn include Restore from Backup!)"
+         5 "Full Restore" "Restore the \Zbcomplete database\Zn from backup"
+         6 "Restore TS" "Restore a \Zbsingle tablespace\Zn from backup"
+         7 "Restore Temp" "Restore the \Zbtemporary\Zn tablespace \Zufrom scratch\Zn "
+         8 "Block Recover" "Recover a \Zbcorrupted block\Zn in some datafile"
+         9 "Cleanup Obsolete" "Purge backups according to your \ZbRetention Policy\Zn "
+         0 "Cleaup Expired" "Purge files \Zbexpired\Zn by crosscheck"
+         A "Move FRA" "Move the \ZbFlash Recovery Area\Zn to a new location"
+         B "Create Standby" "Create a \ZbStandby Database\Zn for the current instance"
+         C "SwitchOver" "Let your primary and standby database \Zbswitch their roles\Zn "
+         X "Exit" "Do nothing - just get me outa here!")
+  menu "${items[@]}"
+  case "$res" in
+    1) CMD="backup_daily";;
+    2) CMD="validate";;
+    3) CMD="crosscheck";;
+    4) CMD="recover";;
+    5) CMD="restore_full";;
+    6) CMD="restore_ts";;
+    7) CMD="restore_temp";;
+    8) CMD="block_recover";;
+    9) CMD="cleanup_obsolete";;
+    0) CMD="cleanup_expired";;
+    a|A) CMD="move_fra";;
+    b|B) CMD="create_standby";;
+    c|C) CMD="switchover";;
+    x|X) finito;;
+  esac
+  yesno "Activate Testmode (aka DryRun - just show what would be done, but do not change anything)?"
+  [ $? -eq 0 ] && DRYRUN=1
+}
+
+#=========================================================[ Process action ]===
+# pass "$CMD" to this
+function action() {
+  case "$1" in
+    create_standby)
+      BACKTITLE="RMan Wrapper: Create Standby Database"
+      runconfig $CONFIGUREOPTS
+      . ${BINDIR}/mods/create_standby.sub
+      finito
+      ;;
+    switchover)
+      BACKTITLE="RMan Wrapper: SwitchOver between Standby and Primary"
+      . ${BINDIR}/mods/switchover.sub
+      finito
+      ;;
+    validate)
+      BACKTITLE="RMan Wrapper: Validation"
+      runconfig $CONFIGUREOPTS
+      waitmessage "Running Validate..."
+      runcmd "${RMANCONN} < $TMPFILE | tee -a $LOGFILE" $TMPFILE "Progress of Validation:"
+      finito
+      ;;
+    crosscheck)
+      BACKTITLE="RMan Wrapper: CrossCheck"
+      runconfig $CONFIGUREOPTS
+      waitmessage "Cross-Checking files..."
+      runcmd "${RMANCONN} < $TMPFILE | tee -a $LOGFILE" $TMPFILE "CrossChecking Progress:"
+      finito
+      ;;
+    backup_daily)
+      BACKTITLE="RMan Wrapper: Daily Backup"
+      [ $ALLDBS -eq 0 ] && runconfig $CONFIGUREOPTS
+      . ${BINDIR}/mods/backup_daily.sub
+      finito
+      ;;
+    cleanup_expired)
+      BACKTITLE="RMan Wrapper: Cleanup expired backups"
+      runconfig $CONFIGUREOPTS
+      . ${BINDIR}/mods/cleanup_expired.sub
+      finito
+      ;;
+    cleanup_obsolete)
+      BACKTITLE="RMan Wrapper: Cleanup obsolete backups"
+      . ${BINDIR}/mods/cleanup_obsolete.sub
+      finito
+      ;;
+    block_recover)
+      BACKTITLE="RMan Wrapper: Block Recovery"
+      message "You asked for a block recovery. Please provide the required data
+              (you probably find them either in the application which alerted you about
+               the problem, or at least in the alert log. Look out for a message like\n
+              \n  ORA-1578: ORACLE data block corrupted (file # 6, block # 1234)"
+      readnr "Please enter the file #"
+      fileno=$nr
+      readnr "Please enter the block #"
+      blockno=$nr
+      yesno "Going to recover block # $blockno for file # $fileno. Continue?"
+      [ $? -ne 0 ] && abort
+      echo "BLOCKRECOVER DATAFILE $fileno BLOCK $blockno;" > $TMPFILE
+      echo exit >> $TMPFILE
+      runcmd "${RMANCONN} < $TMPFILE | tee -a $LOGFILE" "$TMPFILE" "Recovering block# $blockno of file# $fileno..."
+      finito
+      ;;
+    recover)
+      BACKTITLE="RMan Wrapper: Recover"
+      message "Please check following output for errors. A line like
+              \n${red}  ORA-01124: cannot recover data file 1 - file is in use or recovery${NC}
+              \nmeans the database is still up and running, and you rather should check
+              the alert log for what is broken and e.g. recover that tablespace
+              explicitly with \"${0##*/} recover_ts\". Don't continue in this case;
+              it would fail either."
+      waitmessage "Test whether a fast recovery is possible..."
+      runcmd "${RMANCONN} < $TMPFILE | tee -a $LOGFILE" "$TMPFILE" "Running recovery test:"
+      yesno "If there was any error - especially ORA-01124 - shown, you should
+             better abort now. Your decision, so: Continue with the recovery?"
+      [ $? -ne 0 ] && abort
+      waitmessage "OK, so we go to do a 'Fast Recovery' now, stand by..."
+      cat $BINDIR/rman.${CMD}_doit >$TMPFILE
+      echo exit >> $TMPFILE
+      waitmessage "${red}${blink}Running the recover process - don't interrupt now!$NC"
+      runcmd "${RMANCONN} < $TMPFILE | tee -a $LOGFILE" "$TMPFILE" "${red}Recovery running - DO NOT INTERRUPT!$NC"
+      finito
+      ;;
+    restore_full)
+      BACKTITLE="RMan Wrapper: Full Restore"
+      waitmessage "Verifying backup, please wait..."
+      runcmd "${RMANCONN} < $TMPFILE | tee -a $LOGFILE" "$TMPFILE"
+      WINTITLE="Please check the following actions:"
+      textbox "$SPOOLFILE"
+      WINTITLE="Please confirm:"
+      yesno "Shall we execute the actions from previous screen?"
+      [ $? -ne 0 ] && abort
+      yesno "You decided to restore the database '$ORACLE_SID' from the displayed
+             backup. Hopefully, you studied the output carefully - in case some
+             data may not be recoverable, it should have been displayed. Otherwise,
+             you may not be able to restore to the latest state - some of the last
+             transactions may be lost. This is your last chance to abort, so:\n
+             \n${red}Are you really sure to run the restore process?${NC}"
+      [ $? -ne 0 ] && abort
+      cat $BINDIR/rman.${CMD}_doit >$TMPFILE
+      echo exit >> $TMPFILE
+      WINTITLE="Restoring"
+      waitmessage "${red}${blink}Running the restore - don't interrupt now!$NC"
+      runcmd "${RMANCONN} < $TMPFILE | tee -a $LOGFILE" "$TMPFILE" "${red}Running full Restore - DO NOT INTERRUPT!$NC"
+      finito
+      ;;
+    restore_ts)
+      BACKTITLE="RMan Wrapper: Tablespace Restore"
+      WINTITLE="Specify details"
+      readval "Specify the tablespace to restore: "
+      tsname=$res
+      yesno "About to restore/recover tablespace '$tsname'. Is this OK?"
+      [ $? -ne 0 ] && abort
+      WINTITLE="Verifying..."
+      waitmessage "Verifying backup, please wait..."
+      echo "RESTORE TABLESPACE $tsname PREVIEW SUMMARY;">>$TMPFILE
+      echo "RESTORE TABLESPACE $tsname VALIDATE;">>$TMPFILE
+      echo "exit">>$TMPFILE
+      runcmd "${RMANCONN} < $TMPFILE | tee -a $LOGFILE" "$TMPFILE"
+      WINTITLE="Result from verification - please check carefully!"
+      textbox "$SPOOLFILE"
+      yesno "Should we continue to recover tablespace '$tsname'?"
+      [ $? -ne 0 ] && abort
+      echo "SQL 'ALTER TABLESPACE ${tsname} OFFLINE IMMEDIATE';">$TMPFILE
+      echo "RESTORE TABLESPACE ${tsname};">>$TMPFILE
+      echo "RECOVER TABLESPACE ${tsname};">>$TMPFILE
+      echo "SQL 'ALTER TABLESPACE $tsname ONLINE';">>$TMPFILE
+      echo "exit">>$TMPFILE
+      waitmessage "${red}${blink}Running the restore - don't interrupt now!$NC"
+      runcmd "${RMANCONN} < $TMPFILE | tee -a $LOGFILE" "$TMPFILE" "Restoring tablespace $tsname:"
+      finito
+      ;;
+    restore_temp)
+      BACKTITLE="RMan Wrapper: Restoring TEMP Tablespace"
+      yesno "You are going to recreate the lost TEMP tablespace. Is that correct?"
+      [ $? -ne 0 ] && abort
+      WINTITLE="TEMP tablespace specification"
+      readval "TS Name (${TEMPTS_NAME}):"
+      [ -n "$res" ] && TEMPTS_NAME=$res
+      readval "Filename (${TEMPTS_FILE}):"
+      [ -n "$res" ] && TEMPTS_FILEE=$res
+      readval "Size (${TEMPTS_SIZE}):"
+      [ -n "$res" ] && TEMPTS_SIZE=$res
+      readval "AutoExtend (${TEMPTS_AUTOEXTEND}):"
+      [ -n "$res" ] && TEMPTS_AUTOEXTEND=$res
+      echo "ALTER DATABASE DEFAULT TEMPORARY TABLESPACE system;">$TMPFILE
+      echo "DROP TABLESPACE ${TEMPTS_NAME};">>$TMPFILE
+      echo "CREATE TEMPORARY TABLESPACE ${TEMPTS_NAME} TEMPFILE '${TEMPTS_FILE}' REUSE SIZE ${TEMPTS_SIZE} AUTOEXTEND ${TEMPTS_AUTOEXTEND};">>$TMPFILE
+      echo "ALTER DATABASE DEFAULT TEMPORARY TABLESPACE ${TEMPTS_NAME};">>$TMPFILE
+      echo "exit">>$TMPFILE
+      WINTITLE="About to execute the following script (Crtl-C to abort):"
+      textbox $TMPFILE
+      WINTITLE="TEMP tablespace creation"
+      waitmessage "Recreating temporary tablespace, stand by..."
+      runcmd "sqlplus / as sysdba <$TMPFILE" "$TMPFILE" "Creating Tablespace:"
+      finito
+      ;;
+    force_clean)
+      BACKTITLE="RMan Wrapper: Force Cleanup"
+      runconfig $CONFIGUREOPTS
+      . ${BINDIR}/mods/force_clean.sub
+      finito
+      ;;
+    move_fra)
+      BACKTITLE="RMan Wrapper: Moving the Flash Recovery Area"
+      . ${BINDIR}/mods/move_fra.sub
+      finito
+      ;;
+    *)
+      help
+      exit 1
+      ;;
+  esac
+}
+
 case "$CMD" in
-  create_standby)
-    BACKTITLE="RMan Wrapper: Create Standby Database"
-    runconfig $CONFIGUREOPTS
-    . ${BINDIR}/mods/create_standby.sub
-    finito
-    ;;
-  switchover)
-    BACKTITLE="RMan Wrapper: SwitchOver between Standby and Primary"
-    . ${BINDIR}/mods/switchover.sub
-    finito
-    ;;
-  validate)
-    BACKTITLE="RMan Wrapper: Validation"
-    runconfig $CONFIGUREOPTS
-    waitmessage "Running Validate..."
-    runcmd "${RMANCONN} < $TMPFILE | tee -a $LOGFILE" $TMPFILE "Progress of Validation:"
-    finito
-    ;;
-  crosscheck)
-    BACKTITLE="RMan Wrapper: CrossCheck"
-    runconfig $CONFIGUREOPTS
-    waitmessage "Cross-Checking files..."
-    runcmd "${RMANCONN} < $TMPFILE | tee -a $LOGFILE" $TMPFILE "CrossChecking Progress:"
-    finito
-    ;;
-  backup_daily)
-    BACKTITLE="RMan Wrapper: Daily Backup"
-    [ $ALLDBS -eq 0 ] && runconfig $CONFIGUREOPTS
-    . ${BINDIR}/mods/backup_daily.sub
-    finito
-    ;;
-  cleanup_expired)
-    BACKTITLE="RMan Wrapper: Cleanup expired backups"
-    runconfig $CONFIGUREOPTS
-    . ${BINDIR}/mods/cleanup_expired.sub
-    finito
-    ;;
-  cleanup_obsolete)
-    BACKTITLE="RMan Wrapper: Cleanup obsolete backups"
-    . ${BINDIR}/mods/cleanup_obsolete.sub
-    finito
-    ;;
-  block_recover)
-    BACKTITLE="RMan Wrapper: Block Recovery"
-    message "You asked for a block recovery. Please provide the required data
-            (you probably find them either in the application which alerted you about
-             the problem, or at least in the alert log. Look out for a message like\n
-            \n  ORA-1578: ORACLE data block corrupted (file # 6, block # 1234)"
-    readnr "Please enter the file #"
-    fileno=$nr
-    readnr "Please enter the block #"
-    blockno=$nr
-    yesno "Going to recover block # $blockno for file # $fileno. Continue?"
-    [ $? -ne 0 ] && abort
-    echo "BLOCKRECOVER DATAFILE $fileno BLOCK $blockno;" > $TMPFILE
-    echo exit >> $TMPFILE
-    runcmd "${RMANCONN} < $TMPFILE | tee -a $LOGFILE" "$TMPFILE" "Recovering block# $blockno of file# $fileno..."
-    finito
-    ;;
-  recover)
-    BACKTITLE="RMan Wrapper: Recover"
-    message "Please check following output for errors. A line like
-            \n${red}  ORA-01124: cannot recover data file 1 - file is in use or recovery${NC}
-            \nmeans the database is still up and running, and you rather should check
-            the alert log for what is broken and e.g. recover that tablespace
-            explicitly with \"${0##*/} recover_ts\". Don't continue in this case;
-            it would fail either."
-    waitmessage "Test whether a fast recovery is possible..."
-    runcmd "${RMANCONN} < $TMPFILE | tee -a $LOGFILE" "$TMPFILE" "Running recovery test:"
-    yesno "If there was any error - especially ORA-01124 - shown, you should
-           better abort now. Your decision, so: Continue with the recovery?"
-    [ $? -ne 0 ] && abort
-    waitmessage "OK, so we go to do a 'Fast Recovery' now, stand by..."
-    cat $BINDIR/rman.${CMD}_doit >$TMPFILE
-    echo exit >> $TMPFILE
-    waitmessage "${red}${blink}Running the recover process - don't interrupt now!$NC"
-    runcmd "${RMANCONN} < $TMPFILE | tee -a $LOGFILE" "$TMPFILE" "${red}Recovery running - DO NOT INTERRUPT!$NC"
-    finito
-    ;;
-  restore_full)
-    BACKTITLE="RMan Wrapper: Full Restore"
-    waitmessage "Verifying backup, please wait..."
-    runcmd "${RMANCONN} < $TMPFILE | tee -a $LOGFILE" "$TMPFILE"
-    WINTITLE="Please check the following actions:"
-    textbox "$SPOOLFILE"
-    WINTITLE="Please confirm:"
-    yesno "Shall we execute the actions from previous screen?"
-    [ $? -ne 0 ] && abort
-    yesno "You decided to restore the database '$ORACLE_SID' from the displayed
-           backup. Hopefully, you studied the output carefully - in case some
-           data may not be recoverable, it should have been displayed. Otherwise,
-           you may not be able to restore to the latest state - some of the last
-           transactions may be lost. This is your last chance to abort, so:\n
-           \n${red}Are you really sure to run the restore process?${NC}"
-    [ $? -ne 0 ] && abort
-    cat $BINDIR/rman.${CMD}_doit >$TMPFILE
-    echo exit >> $TMPFILE
-    WINTITLE="Restoring"
-    waitmessage "${red}${blink}Running the restore - don't interrupt now!$NC"
-    runcmd "${RMANCONN} < $TMPFILE | tee -a $LOGFILE" "$TMPFILE" "${red}Running full Restore - DO NOT INTERRUPT!$NC"
-    finito
-    ;;
-  restore_ts)
-    BACKTITLE="RMan Wrapper: Tablespace Restore"
-    WINTITLE="Specify details"
-    readval "Specify the tablespace to restore: "
-    tsname=$res
-    yesno "About to restore/recover tablespace '$tsname'. Is this OK?"
-    [ $? -ne 0 ] && abort
-    WINTITLE="Verifying..."
-    waitmessage "Verifying backup, please wait..."
-    echo "RESTORE TABLESPACE $tsname PREVIEW SUMMARY;">>$TMPFILE
-    echo "RESTORE TABLESPACE $tsname VALIDATE;">>$TMPFILE
-    echo "exit">>$TMPFILE
-    runcmd "${RMANCONN} < $TMPFILE | tee -a $LOGFILE" "$TMPFILE"
-    WINTITLE="Result from verification - please check carefully!"
-    textbox "$SPOOLFILE"
-    yesno "Should we continue to recover tablespace '$tsname'?"
-    [ $? -ne 0 ] && abort
-    echo "SQL 'ALTER TABLESPACE ${tsname} OFFLINE IMMEDIATE';">$TMPFILE
-    echo "RESTORE TABLESPACE ${tsname};">>$TMPFILE
-    echo "RECOVER TABLESPACE ${tsname};">>$TMPFILE
-    echo "SQL 'ALTER TABLESPACE $tsname ONLINE';">>$TMPFILE
-    echo "exit">>$TMPFILE
-    waitmessage "${red}${blink}Running the restore - don't interrupt now!$NC"
-    runcmd "${RMANCONN} < $TMPFILE | tee -a $LOGFILE" "$TMPFILE" "Restoring tablespace $tsname:"
-    finito
-    ;;
-  restore_temp)
-    BACKTITLE="RMan Wrapper: Restoring TEMP Tablespace"
-    yesno "You are going to recreate the lost TEMP tablespace. Is that correct?"
-    [ $? -ne 0 ] && abort
-    WINTITLE="TEMP tablespace specification"
-    readval "TS Name (${TEMPTS_NAME}):"
-    [ -n "$res" ] && TEMPTS_NAME=$res
-    readval "Filename (${TEMPTS_FILE}):"
-    [ -n "$res" ] && TEMPTS_FILEE=$res
-    readval "Size (${TEMPTS_SIZE}):"
-    [ -n "$res" ] && TEMPTS_SIZE=$res
-    readval "AutoExtend (${TEMPTS_AUTOEXTEND}):"
-    [ -n "$res" ] && TEMPTS_AUTOEXTEND=$res
-    echo "ALTER DATABASE DEFAULT TEMPORARY TABLESPACE system;">$TMPFILE
-    echo "DROP TABLESPACE ${TEMPTS_NAME};">>$TMPFILE
-    echo "CREATE TEMPORARY TABLESPACE ${TEMPTS_NAME} TEMPFILE '${TEMPTS_FILE}' REUSE SIZE ${TEMPTS_SIZE} AUTOEXTEND ${TEMPTS_AUTOEXTEND};">>$TMPFILE
-    echo "ALTER DATABASE DEFAULT TEMPORARY TABLESPACE ${TEMPTS_NAME};">>$TMPFILE
-    echo "exit">>$TMPFILE
-    WINTITLE="About to execute the following script (Crtl-C to abort):"
-    textbox $TMPFILE
-    WINTITLE="TEMP tablespace creation"
-    waitmessage "Recreating temporary tablespace, stand by..."
-    runcmd "sqlplus / as sysdba <$TMPFILE" "$TMPFILE" "Creating Tablespace:"
-    finito
-    ;;
-  force_clean)
-    BACKTITLE="RMan Wrapper: Force Cleanup"
-    runconfig $CONFIGUREOPTS
-    . ${BINDIR}/mods/force_clean.sub
-    finito
-    ;;
-  move_fra)
-    BACKTITLE="RMan Wrapper: Moving the Flash Recovery Area"
-    . ${BINDIR}/mods/move_fra.sub
-    finito
-    ;;
-  *)
+  help|--help|-h|-?|?)
     help
     exit 1
     ;;
 esac
+[ -z "$CMD" ] && showmenu
+action "$CMD"
+
 
 rm -f $TMPFILE
