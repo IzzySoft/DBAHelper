@@ -1,0 +1,28 @@
+#=====================================================[ Tablespace Restore ]===
+#-------------------------------------------------[ Request data from user ]---
+WINTITLE="Specify details"
+readval "Specify the tablespace to restore: "
+tsname=$res
+yesno "About to restore/recover tablespace '$tsname'. Is this OK?"
+[ $? -ne 0 ] && abort
+
+#------------------------------[ Verify whether we have all backups needed ]---
+WINTITLE="Verifying..."
+waitmessage "Verifying backup, please wait..."
+echo "RESTORE TABLESPACE $tsname PREVIEW SUMMARY;">>$TMPFILE
+echo "RESTORE TABLESPACE $tsname VALIDATE;">>$TMPFILE
+echo "exit">>$TMPFILE
+runcmd "${RMANCONN} < $TMPFILE | tee -a $LOGFILE" "$TMPFILE"
+WINTITLE="Result from verification - please check carefully!"
+textbox "$SPOOLFILE"
+yesno "Should we continue to recover tablespace '$tsname'?"
+[ $? -ne 0 ] && abort
+
+#---------------------------------------------[ Perform Tablespace Restore ]---
+echo "SQL 'ALTER TABLESPACE ${tsname} OFFLINE IMMEDIATE';">$TMPFILE
+echo "RESTORE TABLESPACE ${tsname};">>$TMPFILE
+echo "RECOVER TABLESPACE ${tsname};">>$TMPFILE
+echo "SQL 'ALTER TABLESPACE $tsname ONLINE';">>$TMPFILE
+echo "exit">>$TMPFILE
+waitmessage "${red}${blink}Running the restore - don't interrupt now!$NC"
+runcmd "${RMANCONN} < $TMPFILE | tee -a $LOGFILE" "$TMPFILE" "Restoring tablespace $tsname:"

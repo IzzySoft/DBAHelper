@@ -1,0 +1,20 @@
+#=======================================================[ Recover Database ]===
+#-------------------------------------------------[ Request data from user ]---
+message "Please check following output for errors. A line like
+        \n${red}  ORA-01124: cannot recover data file 1 - file is in use or recovery${NC}
+        \nmeans the database is still up and running, and you rather should check
+        the alert log for what is broken and e.g. recover that tablespace
+        explicitly with \"${0##*/} recover_ts\". Don't continue in this case;
+        it would fail either."
+waitmessage "Test whether a fast recovery is possible..."
+runcmd "${RMANCONN} < $TMPFILE | tee -a $LOGFILE" "$TMPFILE" "Running recovery test:"
+yesno "If there was any error - especially ORA-01124 - shown, you should
+       better abort now. Your decision, so: Continue with the recovery?"
+[ $? -ne 0 ] && abort
+
+#---------------------------------------------------[ Perform the recovery ]---
+waitmessage "OK, so we go to do a 'Fast Recovery' now, stand by..."
+cat $BINDIR/rman.${CMD}_doit >$TMPFILE
+echo exit >> $TMPFILE
+waitmessage "${red}${blink}Running the recover process - don't interrupt now!$NC"
+runcmd "${RMANCONN} < $TMPFILE | tee -a $LOGFILE" "$TMPFILE" "${red}Recovery running - DO NOT INTERRUPT!$NC"

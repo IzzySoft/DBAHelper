@@ -12,6 +12,7 @@ v0.2.5
 + rman.sh: new command "switchover" to perform the switchover between primary
   and standby database
 + rman.sh: now comes with a menu when called w/o parameters (interactive mode)
+* rman.sh: some more code reorganization
 
 v0.2.4 (10.02.2008)
 -------------------

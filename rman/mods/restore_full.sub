@@ -1,0 +1,25 @@
+#==================================================[ Full Database Restore ]===
+#------------------------------[ Verify whether we have all backups needed ]---
+waitmessage "Verifying backup, please wait..."
+runcmd "${RMANCONN} < $TMPFILE | tee -a $LOGFILE" "$TMPFILE"
+
+#-------------------------------------------------[ Request data from user ]---
+WINTITLE="Please check the following actions:"
+textbox "$SPOOLFILE"
+WINTITLE="Please confirm:"
+yesno "Shall we execute the actions from previous screen?"
+[ $? -ne 0 ] && abort
+yesno "You decided to restore the database '$ORACLE_SID' from the displayed
+       backup. Hopefully, you studied the output carefully - in case some
+       data may not be recoverable, it should have been displayed. Otherwise,
+       you may not be able to restore to the latest state - some of the last
+       transactions may be lost. This is your last chance to abort, so:\n
+       \n${red}Are you really sure to run the restore process?${NC}"
+[ $? -ne 0 ] && abort
+
+#----------------------------------------------------[ Perform the restore ]---
+cat $BINDIR/rman.${CMD}_doit >$TMPFILE
+echo exit >> $TMPFILE
+WINTITLE="Restoring"
+waitmessage "${red}${blink}Running the restore - don't interrupt now!$NC"
+runcmd "${RMANCONN} < $TMPFILE | tee -a $LOGFILE" "$TMPFILE" "${red}Running full Restore - DO NOT INTERRUPT!$NC"

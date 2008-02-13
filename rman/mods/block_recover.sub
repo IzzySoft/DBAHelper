@@ -1,0 +1,17 @@
+#============================================[ Recover corrupt data blocks ]===
+#-------------------------------------------------[ Request data from user ]---
+message "You asked for a block recovery. Please provide the required data
+        (you probably find them either in the application which alerted you about
+         the problem, or at least in the alert log. Look out for a message like\n
+        \n  ORA-1578: ORACLE data block corrupted (file # 6, block # 1234)"
+readnr "Please enter the file #"
+fileno=$nr
+readnr "Please enter the block #"
+blockno=$nr
+yesno "Going to recover block # $blockno for file # $fileno. Continue?"
+[ $? -ne 0 ] && abort
+
+#--------------------------------------------[ Perform the block recovery ]---
+echo "BLOCKRECOVER DATAFILE $fileno BLOCK $blockno;" > $TMPFILE
+echo exit >> $TMPFILE
+runcmd "${RMANCONN} < $TMPFILE | tee -a $LOGFILE" "$TMPFILE" "Recovering block# $blockno of file# $fileno..."

@@ -298,113 +298,27 @@ function action() {
       ;;
     block_recover)
       BACKTITLE="RMan Wrapper: Block Recovery"
-      message "You asked for a block recovery. Please provide the required data
-              (you probably find them either in the application which alerted you about
-               the problem, or at least in the alert log. Look out for a message like\n
-              \n  ORA-1578: ORACLE data block corrupted (file # 6, block # 1234)"
-      readnr "Please enter the file #"
-      fileno=$nr
-      readnr "Please enter the block #"
-      blockno=$nr
-      yesno "Going to recover block # $blockno for file # $fileno. Continue?"
-      [ $? -ne 0 ] && abort
-      echo "BLOCKRECOVER DATAFILE $fileno BLOCK $blockno;" > $TMPFILE
-      echo exit >> $TMPFILE
-      runcmd "${RMANCONN} < $TMPFILE | tee -a $LOGFILE" "$TMPFILE" "Recovering block# $blockno of file# $fileno..."
+      . ${BINDIR}/mods/block_recover.sub
       finito
       ;;
     recover)
       BACKTITLE="RMan Wrapper: Recover"
-      message "Please check following output for errors. A line like
-              \n${red}  ORA-01124: cannot recover data file 1 - file is in use or recovery${NC}
-              \nmeans the database is still up and running, and you rather should check
-              the alert log for what is broken and e.g. recover that tablespace
-              explicitly with \"${0##*/} recover_ts\". Don't continue in this case;
-              it would fail either."
-      waitmessage "Test whether a fast recovery is possible..."
-      runcmd "${RMANCONN} < $TMPFILE | tee -a $LOGFILE" "$TMPFILE" "Running recovery test:"
-      yesno "If there was any error - especially ORA-01124 - shown, you should
-             better abort now. Your decision, so: Continue with the recovery?"
-      [ $? -ne 0 ] && abort
-      waitmessage "OK, so we go to do a 'Fast Recovery' now, stand by..."
-      cat $BINDIR/rman.${CMD}_doit >$TMPFILE
-      echo exit >> $TMPFILE
-      waitmessage "${red}${blink}Running the recover process - don't interrupt now!$NC"
-      runcmd "${RMANCONN} < $TMPFILE | tee -a $LOGFILE" "$TMPFILE" "${red}Recovery running - DO NOT INTERRUPT!$NC"
+      . ${BINDIR}/mods/recover.sub
       finito
       ;;
     restore_full)
       BACKTITLE="RMan Wrapper: Full Restore"
-      waitmessage "Verifying backup, please wait..."
-      runcmd "${RMANCONN} < $TMPFILE | tee -a $LOGFILE" "$TMPFILE"
-      WINTITLE="Please check the following actions:"
-      textbox "$SPOOLFILE"
-      WINTITLE="Please confirm:"
-      yesno "Shall we execute the actions from previous screen?"
-      [ $? -ne 0 ] && abort
-      yesno "You decided to restore the database '$ORACLE_SID' from the displayed
-             backup. Hopefully, you studied the output carefully - in case some
-             data may not be recoverable, it should have been displayed. Otherwise,
-             you may not be able to restore to the latest state - some of the last
-             transactions may be lost. This is your last chance to abort, so:\n
-             \n${red}Are you really sure to run the restore process?${NC}"
-      [ $? -ne 0 ] && abort
-      cat $BINDIR/rman.${CMD}_doit >$TMPFILE
-      echo exit >> $TMPFILE
-      WINTITLE="Restoring"
-      waitmessage "${red}${blink}Running the restore - don't interrupt now!$NC"
-      runcmd "${RMANCONN} < $TMPFILE | tee -a $LOGFILE" "$TMPFILE" "${red}Running full Restore - DO NOT INTERRUPT!$NC"
+      . ${BINDIR}/mods/restore_full.sub
       finito
       ;;
     restore_ts)
       BACKTITLE="RMan Wrapper: Tablespace Restore"
-      WINTITLE="Specify details"
-      readval "Specify the tablespace to restore: "
-      tsname=$res
-      yesno "About to restore/recover tablespace '$tsname'. Is this OK?"
-      [ $? -ne 0 ] && abort
-      WINTITLE="Verifying..."
-      waitmessage "Verifying backup, please wait..."
-      echo "RESTORE TABLESPACE $tsname PREVIEW SUMMARY;">>$TMPFILE
-      echo "RESTORE TABLESPACE $tsname VALIDATE;">>$TMPFILE
-      echo "exit">>$TMPFILE
-      runcmd "${RMANCONN} < $TMPFILE | tee -a $LOGFILE" "$TMPFILE"
-      WINTITLE="Result from verification - please check carefully!"
-      textbox "$SPOOLFILE"
-      yesno "Should we continue to recover tablespace '$tsname'?"
-      [ $? -ne 0 ] && abort
-      echo "SQL 'ALTER TABLESPACE ${tsname} OFFLINE IMMEDIATE';">$TMPFILE
-      echo "RESTORE TABLESPACE ${tsname};">>$TMPFILE
-      echo "RECOVER TABLESPACE ${tsname};">>$TMPFILE
-      echo "SQL 'ALTER TABLESPACE $tsname ONLINE';">>$TMPFILE
-      echo "exit">>$TMPFILE
-      waitmessage "${red}${blink}Running the restore - don't interrupt now!$NC"
-      runcmd "${RMANCONN} < $TMPFILE | tee -a $LOGFILE" "$TMPFILE" "Restoring tablespace $tsname:"
+      . ${BINDIR}/mods/restore_ts.sub
       finito
       ;;
     restore_temp)
       BACKTITLE="RMan Wrapper: Restoring TEMP Tablespace"
-      yesno "You are going to recreate the lost TEMP tablespace. Is that correct?"
-      [ $? -ne 0 ] && abort
-      WINTITLE="TEMP tablespace specification"
-      readval "TS Name (${TEMPTS_NAME}):"
-      [ -n "$res" ] && TEMPTS_NAME=$res
-      readval "Filename (${TEMPTS_FILE}):"
-      [ -n "$res" ] && TEMPTS_FILEE=$res
-      readval "Size (${TEMPTS_SIZE}):"
-      [ -n "$res" ] && TEMPTS_SIZE=$res
-      readval "AutoExtend (${TEMPTS_AUTOEXTEND}):"
-      [ -n "$res" ] && TEMPTS_AUTOEXTEND=$res
-      echo "ALTER DATABASE DEFAULT TEMPORARY TABLESPACE system;">$TMPFILE
-      echo "DROP TABLESPACE ${TEMPTS_NAME};">>$TMPFILE
-      echo "CREATE TEMPORARY TABLESPACE ${TEMPTS_NAME} TEMPFILE '${TEMPTS_FILE}' REUSE SIZE ${TEMPTS_SIZE} AUTOEXTEND ${TEMPTS_AUTOEXTEND};">>$TMPFILE
-      echo "ALTER DATABASE DEFAULT TEMPORARY TABLESPACE ${TEMPTS_NAME};">>$TMPFILE
-      echo "exit">>$TMPFILE
-      WINTITLE="About to execute the following script (Crtl-C to abort):"
-      textbox $TMPFILE
-      WINTITLE="TEMP tablespace creation"
-      waitmessage "Recreating temporary tablespace, stand by..."
-      runcmd "sqlplus / as sysdba <$TMPFILE" "$TMPFILE" "Creating Tablespace:"
+      . ${BINDIR}/mods/restore_temp.sub
       finito
       ;;
     force_clean)

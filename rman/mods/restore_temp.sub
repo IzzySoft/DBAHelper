@@ -1,0 +1,25 @@
+#===========================================[ Restore temporary Tablespace ]===
+#-------------------------------------------------[ Request data from user ]---
+yesno "You are going to recreate the lost TEMP tablespace. Is that correct?"
+[ $? -ne 0 ] && abort
+WINTITLE="TEMP tablespace specification"
+readval "TS Name (${TEMPTS_NAME}):"
+[ -n "$res" ] && TEMPTS_NAME=$res
+readval "Filename (${TEMPTS_FILE}):"
+[ -n "$res" ] && TEMPTS_FILEE=$res
+readval "Size (${TEMPTS_SIZE}):"
+[ -n "$res" ] && TEMPTS_SIZE=$res
+readval "AutoExtend (${TEMPTS_AUTOEXTEND}):"
+[ -n "$res" ] && TEMPTS_AUTOEXTEND=$res
+
+#--------------------------------------------------------[ Perform Restore ]---
+echo "ALTER DATABASE DEFAULT TEMPORARY TABLESPACE system;">$TMPFILE
+echo "DROP TABLESPACE ${TEMPTS_NAME};">>$TMPFILE
+echo "CREATE TEMPORARY TABLESPACE ${TEMPTS_NAME} TEMPFILE '${TEMPTS_FILE}' REUSE SIZE ${TEMPTS_SIZE} AUTOEXTEND ${TEMPTS_AUTOEXTEND};">>$TMPFILE
+echo "ALTER DATABASE DEFAULT TEMPORARY TABLESPACE ${TEMPTS_NAME};">>$TMPFILE
+echo "exit">>$TMPFILE
+WINTITLE="About to execute the following script (Crtl-C to abort):"
+textbox $TMPFILE
+WINTITLE="TEMP tablespace creation"
+waitmessage "Recreating temporary tablespace, stand by..."
+runcmd "sqlplus / as sysdba <$TMPFILE" "$TMPFILE" "Creating Tablespace:"
