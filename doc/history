@@ -3,7 +3,7 @@ $Id$
 History for DBAHelper
 =====================
 
-v0.2.5
+v0.2.5 (18.02.2008)
 -------------------
 + rman.sh: create_standby now first checks whether SPFILE is used and (if so)
   offers to first create PFILE from this to proceed with.
