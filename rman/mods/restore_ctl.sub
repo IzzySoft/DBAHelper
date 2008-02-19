@@ -190,6 +190,28 @@ function step_2() {
            really do not have any local (active) controlfile copy left.\n
            \nAre you sure you want to proceed (with above mentioned implications)?"
     [ $? -ne 0 ] && abort
+    message "Let us make sure we have valid backups available. Please watch the
+             output of the following command for any errors, or better: That it
+             confirms we have all files needed available."
+    echo "SET DBID=$dbid;">$TMPFILE
+    echo "RESTORE CONTROLFILE FROM AUTOBACKUP PREVIEW SUMMARY;">>$TMPFILE
+    echo "RESTORE CONTROLFILE FROM AUTOBACKUP VALIDATE;">>$TMPFILE
+    runcmd "$RMANCONN < $TMPFILE | tee -a $LOGFILE" $TMPFILE "Verifying whether a valid backup exists..."
+    yesno "If there have not been any errors - but RMAN found valid backups to
+           use, we now can run the restore. Continue?"
+    [ $? -ne 0 ] && {
+      message "You chose to abort the restore process. If the reason was there
+              have been no (valid) backups found, you are in some trouble: You
+              have nothing available to restore the lost files from. This means
+              you have to create new controlfiles. Hopefully you have all the
+              information needed for this process - with some luck, you will
+              find most of this in the first alert log ever written for this
+              database, when you ran the CREATE DATABASE command. Detailed
+              information can be found in the Oracle Database Backup and
+              Recovery Advanced Users Guide - you may wish to visit
+              http://download.oracle.com/docs/cd/B19306_01/backup.102/b14191/osrecov005.htm"
+      abort
+    }
     message "Running the restore. Please check the output carefully for errors."
     echo "SET DBID=$dbid;">$TMPFILE
     echo "SHUTDOWN ABORT">>$TMPFILE
