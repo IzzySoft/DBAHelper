@@ -219,15 +219,16 @@ function showmenu() {
          2 "Validate Backup" "Validate existing backups"
          3 "Crosscheck" "Check catalog against existing files"
          4 "Recover" "\ZbRecover\Zn database after a crash (does \Zunot\Zn include Restore from Backup!)"
-         5 "Full Restore" "Restore the \Zbcomplete database\Zn from backup"
-         6 "Restore TS" "Restore a \Zbsingle tablespace\Zn from backup"
-         7 "Restore Temp" "Restore the \Zbtemporary\Zn tablespace \Zufrom scratch\Zn "
-         8 "Block Recover" "Recover a \Zbcorrupted block\Zn in some datafile"
-         9 "Cleanup Obsolete" "Purge backups according to your \ZbRetention Policy\Zn "
-         0 "Cleaup Expired" "Purge files \Zbexpired\Zn by crosscheck"
-         A "Move FRA" "Move the \ZbFlash Recovery Area\Zn to a new location"
-         B "Create Standby" "Create a \ZbStandby Database\Zn for the current instance"
-         C "SwitchOver" "Let your primary and standby database \Zbswitch their roles\Zn "
+         5 "Restore Controlfile" "Restore a \Zblost controlfile\Zn from multiplex or backup"
+         6 "Full Restore" "Restore the \Zbcomplete database\Zn from backup"
+         7 "Restore TS" "Restore a \Zbsingle tablespace\Zn from backup"
+         8 "Restore Temp" "Restore the \Zbtemporary\Zn tablespace \Zufrom scratch\Zn "
+         9 "Block Recover" "Recover a \Zbcorrupted block\Zn in some datafile"
+         0 "Cleanup Obsolete" "Purge backups according to your \ZbRetention Policy\Zn "
+         A "Cleaup Expired" "Purge files \Zbexpired\Zn by crosscheck"
+         B "Move FRA" "Move the \ZbFlash Recovery Area\Zn to a new location"
+         C "Create Standby" "Create a \ZbStandby Database\Zn for the current instance"
+         D "SwitchOver" "Let your primary and standby database \Zbswitch their roles\Zn "
          X "Exit" "Do nothing - just get me outa here!")
   menu "${items[@]}"
   case "$res" in
@@ -235,15 +236,16 @@ function showmenu() {
     2) CMD="validate";;
     3) CMD="crosscheck";;
     4) CMD="recover";;
-    5) CMD="restore_full";;
-    6) CMD="restore_ts";;
-    7) CMD="restore_temp";;
-    8) CMD="block_recover";;
-    9) CMD="cleanup_obsolete";;
-    0) CMD="cleanup_expired";;
-    a|A) CMD="move_fra";;
-    b|B) CMD="create_standby";;
-    c|C) CMD="switchover";;
+    5) CMD="restore_ctl";;
+    6) CMD="restore_full";;
+    7) CMD="restore_ts";;
+    8) CMD="restore_temp";;
+    9) CMD="block_recover";;
+    0) CMD="cleanup_obsolete";;
+    a|A) CMD="cleanup_expired";;
+    b|B) CMD="move_fra";;
+    c|C) CMD="create_standby";;
+    d|D) CMD="switchover";;
     x|X) finito;;
   esac
   yesno "Activate Testmode (aka DryRun - just show what would be done, but do not change anything)?"
@@ -304,6 +306,11 @@ function action() {
     recover)
       BACKTITLE="RMan Wrapper: Recover"
       . ${BINDIR}/mods/recover.sub
+      finito
+      ;;
+    restore_ctl)
+      BACKTITLE="RMan Wrapper: Restore lost controlfiles"
+      . ${BINDIR}/mods/restore_ctl.sub
       finito
       ;;
     restore_full)

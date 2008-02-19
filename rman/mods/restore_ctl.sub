@@ -1,0 +1,261 @@
+##############################################-=[ Recover lost controlfile ]=-#
+# $Id$
+#================================================================[ Helpers ]===
+#-------------------------------------------[ Get controlfile info from DB ]---
+# prefered method (if DB available) - here we know the exact format
+function ctl_from_db() {
+  waitmessage "Checking database for controlfile locations..."
+  # -=[ Get controlfile names from DB ]=-
+  ctlfiles="`echo \"set head off lines 1000
+             select value from v\\$parameter where name='control_files';\"|sqlplus -s '/ as sysdba'|sed -n '/^\/.*/p'`"
+}
+
+#------------------------------------------[ Get controlfile from init.ora ]---
+# Not as safe as querying the DB - but if DB is down...
+function ctl_from_file() {
+  initora="${ORACLE_HOME}/dbs/init${ORACLE_SID}.ora"
+  cat $initora |sed 's/\#.*$//'|sed '/^\s*$/d'>$TMPFILE  # Remove comments first
+  local ctls
+  while [ 1 -eq 1 ]; do
+    ctls=`cat $TMPFILE |sed -n 's/.*control_files\s*=\s*(\(.*\))/\1/ p'` # control_files=(..)
+    [ -n "$ctls" ] && break
+    ctls=`cat $TMPFILE |sed -n '/.*control_files\s*=\s*(/,/)/ p'` # control_files=(..\n..)
+    [ -n "$ctls" ] && {
+      ctls=`echo $ctls|sed -n 's/.*(\(.*\)).*/\1/g p'` # cut everything off outside the brackets
+      break
+    }
+    ctls=`cat $TMPFILE |sed -n 's/.*control_files\s*=\(.*\)/\1/ p'` # control_files=a,b,c
+    [ -n "$ctls" ] && break;
+    # What other possibilities can we check???
+    break;
+  done
+  [ -n "$ctls" ] && {
+    ctls=`echo $ctls|sed 's/\"//g'`                  # remove all double quotes (if any)
+    ctls=`echo $ctls|sed "s/'//g"`                   # same for single quotes
+    ctlfiles="$ctls"
+  }
+}
+
+#--------------------------------------[ Parse controlfile list into array ]---
+function parse_ctl_list() {
+  OLDIFS=$IFS
+  IFS=,
+  read ctl1 ctl2 ctl3 ctl4 ctl5 <<ENDCTL
+$ctlfiles
+ENDCTL
+  IFS=$OLDIFS
+  i=1
+  havectl=0
+  typeset -i f=0 # fail
+  ctls=""
+  lost=""
+  while [ $i -lt 6 ]; do
+    val=ctl$i
+    eval val=\$$val
+    [ -z "$val" ] && break
+    ctlfile[$i]=${val## }
+    ctls="$ctls\n${ctlfile[$i]}"
+    if [ -e "${ctlfile[$i]}" ]; then
+      masterctl=${ctlfile[$i]}
+      let havectl=$havectl+1
+    else
+      lostctl[$f]=${ctlfile[$i]}
+      lost="$lost\n${ctlfile[$i]}"
+      let f=$f+1
+    fi
+    let i=$i+1
+  done
+}
+
+#-------------------------------------------------------[ Get DBID from DB ]---
+# prefered method (if DB available)
+function dbid_from_db() {
+  dbid="`echo \"set head off lines 1000
+        select dbid from v\\$database;\"|sqlplus -s '/ as sysdba'`"
+  dbid="`echo $dbid|awk '{print $(NF)}'`"
+}
+
+#-----------------------------------------------------[ Get DBID from file ]---
+# Parsing "old" logfiles, checking for "*: $ORACLE_SID (DBID=*)*"
+function dbid_from_file() {
+  for file in `ls ${LOGDIR}/rman_*`; do
+    fid=`cat $file|sed -n 's/.*\:\s*\(\S\+\)\s*(DBID.*/\1/ p'|tr [:upper:] [:lower:]`
+    [ "$fid" = "`echo $ORACLE_SID|tr [:upper:] [:lower:]`" ] && {
+      dbid=`cat $file|sed -n 's/.*\:\s*\S\+\s*(DBID=\(.\+\)).*/\1/ p'`
+      [ -n "$dbid" ] && break
+    }
+  done
+}
+
+#-----------------------------------------------[ Get DBID from user input ]---
+# last resort
+function dbid_from_user() {
+  readval "Since we cannot access the database anymore (it was already down
+           before this script was started), you need to provide the DBID manually.
+           RMAN needs that information to locate your backup controlfile copy.
+           You can find the DBID in any of the log files created during backup
+           or other RMAN operations run by this script - look inside those files
+           for the string \"(DBID=\" - the DBID is quoted there.\n
+           \nPlease enter the DBID:"
+  dbid="$res"
+}
+
+#----------------------------------------[ Verify data if not read from DB ]---
+# If we could not retrieve controlfile names and DBID directly from the DB, we
+# better let them be crosschecked by the user
+function verify_data() {
+  msg="Since your database was already down, we had to find relevant information
+       elsewhere (init.ora, logfiles). These investigation methods are less safe
+       than a database query - so please check whether we found everything
+       correctly.\n\nThese are the controlfiles (checked from $initora):\n$ctls\n
+       \nFurthermore, we searched for the DBID in your previous logfiles
+       (${LOGDIR}/rman_*) and found it to be \"$dbid\".\n\nIs this all correct?"
+  yesno "$msg"
+  [ $? -ne 0 ] && {
+    readval "Please specify your controlfiles as a comma separated list without
+             any quotes (or press <Enter> to accept \"$ctlfiles\"):"
+    [ -n "$res" ] && {
+      ctlfiles=$res
+      parse_ctl_list
+    }
+    readval "Please specify the DBID (you can find it in previous RMAN
+             logfiles, usually preceded by the string \"connected to target
+             database:\", followed by the uppercased ORACLE_SID; within
+             the braces, you find \"(DBID=\" followed by a number. This
+             number should be entered here - or simply press <Enter>, if it
+             is \"$dbid\"):"
+    [ -n "$res" ] && dbid="$res"
+  }
+}
+
+#-----------------------[ Reached Step 2 - but there is nothing to restore ]---
+function no_restore() {
+  message "You should not be receiving this message - if you did not fool
+           the script. Looks like there is nothing to recover, all your
+           controlfiles are present. But something weird must have happened
+           so you see this message. If you did not modify the script yourself,
+           and you are sure you always provided the correct data when prompted,
+           please contact the author to find out what is going on!"
+  [ ${#lostctl[*]} -eq 0 ] && abort
+  msg="The following files still seem to be lost:\n"
+  i=0
+  while [ $i -lt ${lostctl[*]} ]; do
+    msg="${msg}\n${lostctl[$i]}"
+  done
+  yesno "$msg\n\nDo you still want to continue - despite of the fact this
+         information may be incorrect?"
+  [ $? -ne 0 ] && abort
+}
+
+#=============================================================[ Do the job ]===
+#----------------------------------[ Step 1: Get the controlfile locations ]---
+function step_1() {
+  WINTITLE="Step 1/$STEPS: Check for controlfiles"
+  readval "Which database (ORACLE_SID) we shall recover ($ORACLE_SID)?"
+  [ -n "$res" ] && export ORACLE_SID=$res
+  dbid_from_db
+  if [ -n "`echo $dbid|sed '/[^0-9]/ d'`" ]; then
+    ctl_from_db
+    DBUP=1
+  else
+    ctl_from_file
+    dbid_from_file
+    DBUP=0
+  fi
+  parse_ctl_list
+  # -=[ Crosscheck if data could not be retrieved from DB ]=-
+  [ $DBUP -eq 0 ] && verify_data
+  # -=[ Are there any controlfiles lost? ]=-
+  if [ -n "$lost" ]; then
+    lostmsg="The following controlfiles seem to be lost:$lost"
+  else
+    lostmsg="All controlfiles seem to be present - so there is nothing for us to do!"
+  fi
+  message "There are ${#ctlfile[*]} controlfiles configured according to your database:\n$ctls\n\n$lostmsg"
+  [ -z "$lost" ] && finito
+}
+
+#------------------------------------------[ Step 2: Restore (and recover) ]---
+function step_2() {
+  WINTITLE="Step 2/$STEPS: Looking for recovery source"
+  # -=[ Do we really need a restore? ]=-
+  [ $havectl -eq ${#ctlfile[*]} ] && no_restore
+  # -= [ No local copy left - we need to restore from backup ]=-
+  if [ $havectl -eq 0 ]; then # no local copy left
+    [ -z "$dbid" ] && dbid_from_user
+    yesno "Restoring the controlfile from a backup requires a recovery of the
+           database, which then must be opened using the RESETLOGS option.
+           If the data collected by this script have been incorrect/incomplete,
+           this may cause unnecessary trouble - so better verify first that you
+           really do not have any local (active) controlfile copy left.\n
+           \nAre you sure you want to proceed (with above mentioned implications)?"
+    [ $? -ne 0 ] && abort
+    message "Running the restore. Please check the output carefully for errors."
+    echo "SET DBID=$dbid;">$TMPFILE
+    echo "SHUTDOWN ABORT">>$TMPFILE
+    echo "STARTUP NOMOUNT">>$TMPFILE
+    echo "RESTORE CONTROLFILE FROM AUTOBACKUP;">>$TMPFILE
+    runcmd "$RMANCONN < $TMPFILE | tee -a $LOGFILE" $TMPFILE "Restoring Controlfile from AutoBackup"
+    [ $? -ne 0 ] && {
+      alert "Looks like there have been errors during the restore!\n${NC}If I am
+             wrong and the restore succeeded, please run:\n
+             \nALTER DATABASE MOUNT;\n
+             \nRECOVER DATABASE USING BACKUP CONTROLFILE UNTIL CANCEL;
+             \nALTER DATABASE OPEN RESETLOGS;\n
+             \nmanually either from within RMAN or from SQLPlus. But if the restore
+             failed, that will not help - and this script cannot help you further..."
+    }
+    yesno "Looks like the restore succeeded. Shall we continue with the restore
+           and open the database RESETLOGS (this is required)?"
+    [ $? -ne 0 ] && abort
+    echo "ALTER DATABASE MOUNT;">$TMPFILE
+    echo "RECOVER DATABASE USING BACKUP CONTROLFILE UNTIL CANCEL;">>$TMPFILE
+    echo "ALTER DATABASE OPEN RESETLOGS;">>$TMPFILE
+    runcmd "$RMANCONN < $TMPFILE | tee -a $LOGFILE" $TMPFILE "Recovering and opening the database"
+  # -=[ Local copy available ]=-
+  else # we can use a local copy
+    i=0
+    yesno "We are lucky enough to have at least one controlfile left - which
+           saves us from running the recovery and opening the database RESETLOGS
+           (with all the implications). We simply need to shutdown the database,
+           copy this file to all the locations where it is missing, and startup
+           the database again. Shall we do so now?"
+    [ $? -ne 0 ] && abort
+    waitmessage "Shutting down the database..."
+    echo "SHUTDOWN ABORT">$TMPFILE
+    runcmd "sqlplus / as sysdba <$TMPFILE.sql | tee -a $LOGFILE" "$TMPFILE.sql"
+    waitmessage "Copying files..."
+    while [ $i -lt ${#lostctl[*]} ]; do
+      cp $masterctl ${lostctl[$i]}
+      let i=$i+1
+    done
+    echo "STARTUP;">$TMPFILE.sql
+    runcmd "sqlplus / as sysdba <$TMPFILE.sql | tee -a $LOGFILE" "$TMPFILE.sql" "Starting up the database..."
+  fi
+}
+
+#-----------------------------------------------------------------[ TempTS ]---
+function step_3() {
+  WINTITLE="Step 3/$STEPS: Restoring the temporary tablespace"
+  if [ $havectl -eq 0 ]; then # no local copy left
+    yesno "Since you needed to restore the controlfile from a backup, we now
+           also have to restore the temporary tablespace. No data is lost there,
+           everything was just temporary ;)\nShall we proceed?"
+    [ $? -ne 0 ] && abort
+    restore_temp
+  else
+    message "We did not need to restore from a backup - so the temporary
+             tablespace should have been left intact. In case you encounter any
+             problems with that despite of this fact, you may execute this
+             script again with the restore_temp parameter, to restore the
+             temporary tablespace."
+  fi
+}
+
+STEPS=3
+
+step_1
+step_2
+step_3
+
+finito

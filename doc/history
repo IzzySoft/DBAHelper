@@ -3,6 +3,11 @@ $Id$
 History for DBAHelper
 =====================
 
+v0.2.6
+-------------------
++ rman.sh: new command "restore_ctl" to restore a lost controlfile either from
+  a multiplexed copy (if available) or from backup (not yet completely tested)
+
 v0.2.5 (18.02.2008)
 -------------------
 + rman.sh: create_standby now first checks whether SPFILE is used and (if so)
