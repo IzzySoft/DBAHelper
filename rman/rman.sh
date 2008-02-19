@@ -205,51 +205,96 @@ else
   RMANCONN="rman target $username/$passwd catalog ${CATALOG}"
 fi
 
-[ -f $BINDIR/rman.$CMD ] && {
-  cat $BINDIR/rman.$CMD >$TMPFILE
-  echo exit >>$TMPFILE
+#==================================================================[ Menus ]===
+#----------------------------------------------------[ Display Backup Menu ]---
+function backupmenu() {
+  BACKTITLE="RMan Wrapper"
+  WINTITLE="Backup Menu"
+  items=("Please select the action to process:"
+         1 "Daily Backup" "Create the \Zbdaily backup\Zn "
+         2 "Validate Backup" "Validate existing backups"
+         3 "Crosscheck" "Check catalog against existing files"
+         4 "Cleanup Obsolete" "Purge backups according to your \ZbRetention Policy\Zn "
+         5 "Cleanup Expired" "Purge files \Zbexpired\Zn by crosscheck"
+         0 "Back to Main Menu" "Go back to the \ZbMain Menu\Zn ")
+  menu "${items[@]}"
+  case "$res" in
+    1) CMD="backup_daily";;
+    2) CMD="validate";;
+    3) CMD="crosscheck";;
+    4) CMD="cleanup_obsolete";;
+    5) CMD="cleanup_expired";;
+    0) return;;
+  esac
+  yesno "Activate Testmode (aka DryRun - just show what would be done, but do not change anything)?"
+  [ $? -eq 0 ] && DRYRUN=1
+}
+
+#---------------------------------------------------[ Display Restore Menu ]---
+function restoremenu() {
+  BACKTITLE="RMan Wrapper"
+  WINTITLE="Restore Menu"
+  items=("Please select the action to process:"
+         1 "Recover" "\ZbRecover\Zn database after a crash (does \Zunot\Zn include Restore from Backup!)"
+         2 "Restore Controlfile" "Restore a \Zblost controlfile\Zn from multiplex or backup"
+         3 "Full Restore" "Restore the \Zbcomplete database\Zn from backup"
+         4 "Restore TS" "Restore a \Zbsingle tablespace\Zn from backup"
+         5 "Restore Temp" "Restore the \Zbtemporary\Zn tablespace \Zufrom scratch\Zn "
+         6 "Block Recover" "Recover a \Zbcorrupted block\Zn in some datafile"
+         0 "Back to Main Menu" "Go back to the \ZbMain Menu\Zn ")
+  menu "${items[@]}"
+  case "$res" in
+    1) CMD="recover";;
+    2) CMD="restore_ctl";;
+    3) CMD="restore_full";;
+    4) CMD="restore_ts";;
+    5) CMD="restore_temp";;
+    6) CMD="block_recover";;
+    0) return;;
+  esac
+  yesno "Activate Testmode (aka DryRun - just show what would be done, but do not change anything)?"
+  [ $? -eq 0 ] && DRYRUN=1
+}
+
+#---------------------------------------------------[ Display Restore Menu ]---
+function miscmenu() {
+  BACKTITLE="RMan Wrapper"
+  WINTITLE="Miscellaneous Menu"
+  items=("Please select the action to process:"
+         1 "Move FRA" "Move the \ZbFlash Recovery Area\Zn to a new location"
+         2 "Create Standby" "Create a \ZbStandby Database\Zn for the current instance"
+         3 "SwitchOver" "Let your primary and standby database \Zbswitch their roles\Zn "
+         0 "Back to Main Menu" "Go back to the \ZbMain Menu\Zn ")
+  menu "${items[@]}"
+  case "$res" in
+    1) CMD="move_fra";;
+    2) CMD="create_standby";;
+    3) CMD="switchover";;
+    0) return;;
+  esac
+  yesno "Activate Testmode (aka DryRun - just show what would be done, but do not change anything)?"
+  [ $? -eq 0 ] && DRYRUN=1
 }
 
 #------------------------------------------------------[ Display Main Menu ]---
 function showmenu() {
   BACKTITLE="RMan Wrapper"
   WINTITLE="Main Menu"
-  items=("Please select the action to process:"
-         1 "Daily Backup" "Create the \Zbdaily backup\Zn "
-         2 "Validate Backup" "Validate existing backups"
-         3 "Crosscheck" "Check catalog against existing files"
-         4 "Recover" "\ZbRecover\Zn database after a crash (does \Zunot\Zn include Restore from Backup!)"
-         5 "Restore Controlfile" "Restore a \Zblost controlfile\Zn from multiplex or backup"
-         6 "Full Restore" "Restore the \Zbcomplete database\Zn from backup"
-         7 "Restore TS" "Restore a \Zbsingle tablespace\Zn from backup"
-         8 "Restore Temp" "Restore the \Zbtemporary\Zn tablespace \Zufrom scratch\Zn "
-         9 "Block Recover" "Recover a \Zbcorrupted block\Zn in some datafile"
-         0 "Cleanup Obsolete" "Purge backups according to your \ZbRetention Policy\Zn "
-         A "Cleaup Expired" "Purge files \Zbexpired\Zn by crosscheck"
-         B "Move FRA" "Move the \ZbFlash Recovery Area\Zn to a new location"
-         C "Create Standby" "Create a \ZbStandby Database\Zn for the current instance"
-         D "SwitchOver" "Let your primary and standby database \Zbswitch their roles\Zn "
-         X "Exit" "Do nothing - just get me outa here!")
-  menu "${items[@]}"
-  case "$res" in
-    1) CMD="backup_daily";;
-    2) CMD="validate";;
-    3) CMD="crosscheck";;
-    4) CMD="recover";;
-    5) CMD="restore_ctl";;
-    6) CMD="restore_full";;
-    7) CMD="restore_ts";;
-    8) CMD="restore_temp";;
-    9) CMD="block_recover";;
-    0) CMD="cleanup_obsolete";;
-    a|A) CMD="cleanup_expired";;
-    b|B) CMD="move_fra";;
-    c|C) CMD="create_standby";;
-    d|D) CMD="switchover";;
-    x|X) finito;;
-  esac
-  yesno "Activate Testmode (aka DryRun - just show what would be done, but do not change anything)?"
-  [ $? -eq 0 ] && DRYRUN=1
+  while [ 1 -eq 1 ]; do
+    items=("Please select a submenu:"
+           1 "Backup Maintenance" "Create/Validate/Cleanup your Backups"
+           2 "Restauration" "\ZbRestore/Recover\Zn database (objects)"
+           3 "Miscellaneous" "Move FRA, Create Standby, Switchover..."
+           X "Exit" "Do nothing - just get me outa here!")
+    menu "${items[@]}"
+    case "$res" in
+      1) backupmenu;;
+      2) restoremenu;;
+      3) miscmenu;;
+      x|X) finito;;
+    esac
+    [ -n "$CMD" ] && return
+  done
 }
 
 #=========================================================[ Process action ]===
@@ -271,6 +316,8 @@ function action() {
       BACKTITLE="RMan Wrapper: Validation"
       runconfig $CONFIGUREOPTS
       waitmessage "Running Validate..."
+      cat ${BINDIR}/rman.$CMD >$TMPFILE
+      echo "exit">>$TMPFILE
       runcmd "${RMANCONN} < $TMPFILE | tee -a $LOGFILE" $TMPFILE "Progress of Validation:"
       finito
       ;;
@@ -278,6 +325,8 @@ function action() {
       BACKTITLE="RMan Wrapper: CrossCheck"
       runconfig $CONFIGUREOPTS
       waitmessage "Cross-Checking files..."
+      cat ${BINDIR}/rman.$CMD >$TMPFILE
+      echo "exit">>$TMPFILE
       runcmd "${RMANCONN} < $TMPFILE | tee -a $LOGFILE" $TMPFILE "CrossChecking Progress:"
       finito
       ;;

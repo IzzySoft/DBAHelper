@@ -1,4 +1,5 @@
 #=======================================================[ Recover Database ]===
+# $Id$
 #-------------------------------------------------[ Request data from user ]---
 message "Please check following output for errors. A line like
         \n${red}  ORA-01124: cannot recover data file 1 - file is in use or recovery${NC}
@@ -7,6 +8,8 @@ message "Please check following output for errors. A line like
         explicitly with \"${0##*/} recover_ts\". Don't continue in this case;
         it would fail either."
 waitmessage "Test whether a fast recovery is possible..."
+cat ${BINDIR}/rman.$CMD>$TMPFILE
+echo exit>>$TMPFILE
 runcmd "${RMANCONN} < $TMPFILE | tee -a $LOGFILE" "$TMPFILE" "Running recovery test:"
 yesno "If there was any error - especially ORA-01124 - shown, you should
        better abort now. Your decision, so: Continue with the recovery?"

@@ -1,6 +1,9 @@
 #==================================================[ Full Database Restore ]===
+# $Id$
 #------------------------------[ Verify whether we have all backups needed ]---
 waitmessage "Verifying backup, please wait..."
+cat ${BINDIR}/rman.$CMD>$TMPFILE
+echo exit>>$TMPFILE
 runcmd "${RMANCONN} < $TMPFILE | tee -a $LOGFILE" "$TMPFILE"
 
 #-------------------------------------------------[ Request data from user ]---

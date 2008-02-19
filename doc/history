@@ -7,6 +7,8 @@ v0.2.6
 -------------------
 + rman.sh: new command "restore_ctl" to restore a lost controlfile either from
   a multiplexed copy (if available) or from backup (not yet completely tested)
++ rman.sh: split up menu (got to large)
+! rman.sh: some minor fixes (mainly concerning "DryRun" debug output)
 
 v0.2.5 (18.02.2008)
 -------------------

@@ -1,19 +1,27 @@
+#################################################[ Cleanup expired Backups ]###
+# $Id$
+STEPS=3
 
-#---------------------------------------------------[ Introductional hints ]---
-WINTITLE="Step 1: Crosscheck"
+#============================================================[ Do the job! ]===
+#-----------------------------------------------------[ Step 1: CrossCheck ]---
+WINTITLE="Step 1/$STEPS: Crosscheck"
 message "We will first need to run a crosscheck. Following that, we create a list
          of expired files, which then will be displayed to you. Please check the
          list carefully before you proceed."
 waitmessage "Running crosscheck..."
-runcmd "${RMANCONN} < $TMPFILE | tee -a $LOGFILE"
+cat ${BINDIR}/rman.$CMD>$TMPFILE
+echo exit>>$TMPFILE
+runcmd "${RMANCONN} < $TMPFILE | tee -a $LOGFILE" $TMPFILE
 cat ${BINDIR}/rman.cleanup_expired_list >$TMPFILE
 echo "exit">>$TMPFILE
-runcmd "${RMANCONN} < $TMPFILE | tee -a $LOGFILE"
+runcmd "${RMANCONN} < $TMPFILE | tee -a $LOGFILE" $TMPFILE
 
-WINTITLE="Step 2: List of expired files (please check)"
+#--------------------------------------------------[ Step 2: Check Results ]---
+WINTITLE="Step 2/$STEPS: List of expired files (please check)"
 textbox "$SPOOLFILE"
 
-WINTITLE="Step 3: Cleanup"
+#------------------------------------------------[ Step 3: Cleanup expired ]---
+WINTITLE="Step 3/$STEPS: Cleanup"
 yesno "The previous screen listed all found expired objects, i.e. those are no
        longer available on the disks, but still in the catalog/controlfile - or
        available in both but out of date. To keep the records small (especially
