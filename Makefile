@@ -3,9 +3,10 @@
 
 DESTDIR=
 prefix=/usr/local
-datarootdir=$(DESTDIR)$(prefix)/share
-datadir=$(datarootdir)/dbahelper
-docdir=$(datarootdir)/doc/dbahelper
+datarootdir=$(prefix)/share
+fdatadir=$(datarootdir)/dbahelper
+datadir=$(DESTDIR)$(fdatadir)
+docdir=$(DESTDIR)$(datarootdir)/doc/dbahelper
 sysconfdir=$(DESTDIR)/etc
 bindir=$(DESTDIR)$(prefix)/bin
 INSTALL=install
@@ -16,7 +17,7 @@ install: installdirs
 	$(INSTALL) -c -p -m 750 globalconf $(datadir)
 	$(INSTALL) -c -p -m 754 configure $(datadir)
 	$(INSTALL_DATA) -c -p rman/rmanrc $(sysconfdir)
-	echo "BINDIR=$(datadir)/rman">> $(sysconfdir)/rmanrc
+	echo "BINDIR=$(fdatadir)/rman">> $(sysconfdir)/rmanrc
 	$(INSTALL) -c -p -m 755 rman/rmanw $(bindir)
 	$(INSTALL_DATA) -c -p rman/rman* $(datadir)/rman
 	$(INSTALL_DATA) -c -p rman/mods/* $(datadir)/rman/mods
