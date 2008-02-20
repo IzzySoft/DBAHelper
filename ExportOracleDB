@@ -113,7 +113,7 @@ run_cmd "$CMD" "Export failed!" 14
 cd ${DIRECTORY}
 case "$ZIP" in
   gzip)  run_cmd "gzip -9 ${FILE}" "Compress failed" 2;;
-  bzip2) "bzip2 -9 ${FILE}" "Compress failed" 2;;
+  bzip2) run_cmd "bzip2 -9 ${FILE}" "Compress failed" 2;;
   none) ;;
   *) echo "Invalid compression utility specified - cannot compress, sorry."
      exit 1;;

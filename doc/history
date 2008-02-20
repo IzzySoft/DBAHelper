@@ -11,6 +11,7 @@ v0.2.6
 ! rman.sh: some minor fixes (mainly concerning "DryRun" debug output)
 + rman.sh: added "rmanw" script which will be installed into your path (plus
   an adapted rmanrc to /etc) to be able to call it from anywhere
+! ExportOracleDB: bzip2 compression was ignoring the --dryrun parameter
 
 v0.2.5 (18.02.2008)
 -------------------
