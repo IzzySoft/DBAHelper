@@ -1,0 +1,35 @@
+#!/bin/bash
+###############################################################################
+# RMAN wrapper
+# This is the "Wrapper Wrapper" to call the real script from the binary path
+# contained in the usual PATH variable (/bin:/usr/local/bin or the like)
+# Once properly installed, you can call this script from anywhere using the
+# same syntax as described for rman.sh
+# -----------------------------------------------------------------------------
+# When performing a manual install (not RPM/DEB or "make install"), you may
+# wish to put this file somewhere into your path, and copy the rman/rmanrc
+# file into the /etc directory, adding the following line to its end:
+#    BINDIR=/path/to/rman.sh
+# Of course, you have to replace the path with the directory where your rman.sh
+# resides in - e.g.
+#    BINDIR=/home/oracle/dbahelper/rman
+# If you install from RPM/DEB or using "make install", these steps will be
+# performed for you automatically.
+###############################################################################
+# $Id: rman.sh 115 2008-02-06 19:24:47Z izzy $
+
+#-------------[ Check for /etc/rmanrc and source it - or exit if not found ]---
+[ ! -e /etc/rmanrc ] && {
+  echo "Cannot find configuration file /etc/rmanrc - so I don't know where the RMAN"
+  echo "Framework is installed. Sorry."
+  exit 1
+}
+. /etc/rmanrc
+
+#-[ Check for rman.sh at the indicated place and exec - or exit if not found ]-
+[ ! -e ${BINDIR}/rman.sh ] && {
+  echo "Could not find the RMAN framework at the place the configuration file"
+  echo "(/etc/rmanrc) points to."
+  exit 1
+}
+${BINDIR}/rman.sh $@

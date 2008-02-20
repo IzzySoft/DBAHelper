@@ -10,27 +10,62 @@
 <body>
 <table align="center" width="95%" border="0">
  <tr><th>Installation</th></tr>
+ <tr><th class="th_sub"><a name="auto">Automated installation</th></tr>
+ <tr><td class="text">
+  There are two ways to do an automated installation:<ul>
+  <li>Installing from the RPM/DEB package (<code>rpm -ivh dbahelper*.rpm</code>
+      or <code>dpkg -i dbahelper*.deb</code>, depending on your packaging system
+      - or <code>yum install dbahelper</code> / <code>apt-get install dbahelper</code>
+      if you included the IzzySoft <a href="http://apt.izzysoft.de/"
+      target="_blank">Repository</a> to your packaging systems configuration)</li>
+  <li>Running <code>make install</code> from within the directory you extracted
+      the <code>dbahelper*.tar.gz</code> file to</li></ul>
+  In both cases, you still need to adjust the configuration files to your
+  requirements as described below.
+ </td></tr>
+ <tr><th class="th_sub"><a name="manual">Manual installation</th></tr>
  <tr><td class="text">
   <ol>
    <li><b>Copy the scripts</b> (i.e. all files of the root directory of the distribution
        archive) into any directory you would like to run them from. Make sure to
        keep them all together in the same directory.</li>
-   <li><b>Edit the <code>globalconf</code> configuration file.</b> Most important
-       is to set the <code>user</code> and <code>password</code>, plus the
-       <code>TR_TMP</code> option. The <code>Generate_createdb.sh</code> does not
-       need any configuration (and does not use the <code>globalconf</code> file),
-       but you <i>may</i> configure the names of the resulting scripts in the head
-       of the script. For details of the configuration for the other scripts,
-       please see the <a href="config.html">configuration</a> page.</li>
+   <li>Optionally, <b>Update your PATH variable</b> to include the installation
+       directories (both, <code>.../dbahelper</code> and <code>.../dbahelper/rman</code>)
+       so you can access these scripts easily from anywhere</li>
   </ol>
  </td></tr>
+ <tr><th>Basic configuration</th></tr>
  <tr><td class="text">
-  That's all - now you should be able to use the scripts. Optionally you may want
-  to put the scripts directory into your PATH to be able to execute them from
-  everywhere - but that is up to you. If you succeeded up to this point, you should
-  continue with the <a href="usage.html">usage</a> page to read important things
-  about how to call the scripts. Maybe after a while you want to fine-tune your
-  setup: read more about that on the <a href="config.html">configuration</a> page.
+   This includes two files: <code>globalconf</code> (in the directory where the
+   DBAHelper files are installed in - i.e. either where you put them during
+   <a href="#manual">manual installation</a>, or <code>/usr/local/share/dbahelper</code>
+   when installed using <code>make install</code>, or <code>/usr/share/dbahelper</code>
+   when installed from the distributed RPM/DEB package), and <code>rmanrc</code>
+   (again, either in the installation directory after a manual install - or in
+   the <code>/etc</code> directory after <a href="#auto">automated installation</a>).
+  <ul>
+   <li><b>Edit the <code>globalconf</code> configuration file.</b> Most important
+       is to set the <code>user</code> and <code>password</code>, plus the
+       <code>TR_TMP</code> option.</li>
+   <li><b>Edit the <code>rmanrc</code> configuration file.</b> Most important
+       part here is the <code>LOGDIR</code>, which should point to a separate
+       directory where the RMAN Wrapper stores its logs into. A separate directory
+       is recommended due to the fact that <code>rman.sh</code> will create
+       a separate logfile for each call and action.</li>
+   <li>The <code>Generate_createdb.sh</code> does not need any configuration (and
+       does not use the <code>globalconf</code> file), but you <i>may</i>
+       configure the names of the resulting scripts in the head of the script.</li>
+  </ul>
+  For details of the configuration (also for the other scripts), please see the
+  <a href="config.html">configuration</a> page.
+ </td></tr>
+ <tr><th>Next steps</th></tr>
+ <tr><td class="text">
+  That's all - now you should be able to use the scripts. If you succeeded up to
+  this point, you should continue with the <a href="usage.html">usage</a> page
+  to read important things about how to call the scripts. Maybe after a while you
+  want to fine-tune your setup: read more about that on the
+  <a href="config.html">configuration</a> page.
  </td></tr>
 </table>
 

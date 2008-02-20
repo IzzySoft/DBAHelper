@@ -9,6 +9,8 @@ v0.2.6
   a multiplexed copy (if available) or from backup (not yet completely tested)
 + rman.sh: split up menu (got to large)
 ! rman.sh: some minor fixes (mainly concerning "DryRun" debug output)
++ rman.sh: added "rmanw" script which will be installed into your path (plus
+  an adapted rmanrc to /etc) to be able to call it from anywhere
 
 v0.2.5 (18.02.2008)
 -------------------

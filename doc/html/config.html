@@ -142,7 +142,12 @@
   which it defaults otherwise). These files are especially useful for the
   <code>rman.sh backup_daily --all</code> command - for this (and possible other
   command line switches), see <A HREF="usage.html#rman">RMAN usage</A>.<BR>
-  Settings for <code>rman.sh</code> itself are made inside the <code>rmanrc</code> file:
+  Settings for <code>rman.sh</code> itself are made inside the <code>rmanrc</code>
+  file, which is located in the <code>rman/</code> subdirectory of your DBAHelper
+  installation (or in <code>/etc</code> after an <a href="install.html#auto">automated
+  installation</a> - in which case settings from <code>rman/rmanrc</code> would
+  simply overwrite the settings from <code>/etc/rmanrc</code>, so you may put
+  your changes in either file considering that fact):
  </td></tr>
  <tr><td class="text">
   <table align="center" width="95%">

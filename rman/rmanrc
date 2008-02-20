@@ -1,4 +1,4 @@
-LOGDIR=/local/database/a01/${ORACLE_SID}/dump/log
+LOGDIR=./
 TMPFILE=/tmp/rman.$$
 SPOOLFILE=/tmp/rman_spool.$$
 TEMPTS_NAME="TEMP"
