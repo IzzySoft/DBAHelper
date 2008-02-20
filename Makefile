@@ -35,3 +35,8 @@ installdirs:
 uninstall:
 	rm -rf $(datadir)
 	rm -rf $(docdir)
+	rm -f $(bindir)/rmanw
+
+purge: uninstall
+	rm -f $(sysconfdir)/rmanrc
+
