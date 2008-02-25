@@ -3,7 +3,7 @@ $Id$
 History for DBAHelper
 =====================
 
-v0.2.6
+v0.2.6 (25.02.2008)
 -------------------
 + rman.sh: new command "restore_ctl" to restore a lost controlfile either from
   a multiplexed copy (if available) or from backup (not yet completely tested)

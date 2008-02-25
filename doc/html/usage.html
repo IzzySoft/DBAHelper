@@ -364,6 +364,9 @@
        <td class="text">Wow, it crashed. What now? Recover, of course. This command
            tries to recover the database without restoring a backup. If it fails, continue
 	   with one of the restore commands.</td></tr>
+   <tr><td class="td_name"><code>restore_ctl</code></td>
+       <td class="text">Restore (a) lost controlfile(s) - if possible, from a
+           multiplexed copy; otherwise from backup.</td></tr>
    <tr><td class="td_name"><code>restore_full</code></td>
        <td class="text">Run a complete restore for all of the database files. This is
            the last resort if nothing else works, and will shutdown your database
