@@ -21,6 +21,16 @@ If all this conditions are met, press OK - otherwise ESC to abort."
          export ORACLE_SID=$res
 	 ;;
   esac
+
+# Ensure we are using the correct ORACLE_HOME
+  yesno "The current ORACLE_HOME is set to '$ORACLE_HOME'. Is this correct?"
+  case "$?" in
+    255) abort;;
+      0) ;;
+      1) readval "Please enter the correct ORACLE_HOME: "
+         export ORACLE_HOME=$res
+	 ;;
+  esac
 }
 
 #=======================================================[ Step 2: init.ora ]===
@@ -71,7 +81,10 @@ function step_2() {
       alert "We cannot continue without that entry. Please make sure you setup everything accordingly, and then try again."
       abort
     }
-    runcmd "echo -e \"\n$tnsentry\">>$ORACLE_HOME/network/admin/tnsnames.ora"
+    runcmd "echo -e \"\n$tnsentry\">>$ORACLE_HOME/network/admin/tnsnames.ora" "" "" "" nospool
+    [ $? -ne 0 ] && {
+      alert "Failed to add the entry to $ORACLE_HOME/network/admin/tnsnames.ora (permission problems?) - Please add it manually before continuing:$NC\n\n$tnsentry"
+    }
     dummy=`tnsping $tnsname`
     [ $? -ne 0 ] && {
       alert "We still cannot reach the remote listener. Make sure you provided
@@ -117,12 +130,12 @@ function step_2() {
   readval "$text Init.ora for the new Master ($masterini): "
   [ -n "$res" ] && masterini="$res"
   #----------------------------------------[ Create the new init.ora files ]---
-  cat $initora|sed -e '/LOG_ARCHIVE_DEST_1/d' -e '/STANDBY_FILE_MANAGEMENT/d' \
-    -e '/STANDBY_ARCHIVE_DEST/d' -e '/DB_UNIQUE_NAME/d' -e '/FAL_SERVER/d' \
-    -e '/FAL_CLIENT/d' -e '/REMOTE_LOGIN_PASSWORD_FILE/d' >$stdbyini
-  cat $initora|sed -e '/LOG_ARCHIVE_DEST_1/d' -e '/STANDBY_FILE_MANAGEMENT/d' \
-    -e '/STANDBY_ARCHIVE_DEST/d' -e '/FAL_SERVER/d' \
-    -e '/FAL_CLIENT/d' -e '/REMOTE_LOGIN_PASSWORD_FILE/d' >$masterini
+  cat $initora|sed -e '/LOG_ARCHIVE_DEST_1/Id' -e '/STANDBY_FILE_MANAGEMENT/Id' \
+    -e '/STANDBY_ARCHIVE_DEST/Id' -e '/DB_UNIQUE_NAME/Id' -e '/FAL_SERVER/Id' \
+    -e '/FAL_CLIENT/Id' -e '/REMOTE_LOGIN_PASSWORDFILE/Id' >$stdbyini
+  cat $initora|sed -e '/LOG_ARCHIVE_DEST_1/Id' -e '/STANDBY_FILE_MANAGEMENT/Id' \
+    -e '/STANDBY_ARCHIVE_DEST/Id' -e '/FAL_SERVER/Id' \
+    -e '/FAL_CLIENT/Id' -e '/REMOTE_LOGIN_PASSWORDFILE/Id' >$masterini
   cat <<ENDNEW >>$stdbyini
 
 ##########################
@@ -134,7 +147,7 @@ STANDBY_ARCHIVE_DEST='LOCATION=USE_DB_RECOVERY_FILE_DEST'
 DB_UNIQUE_NAME=$stbunique
 FAL_SERVER=$mastertns
 FAL_CLIENT=$tnsname
-REMOTE_LOGIN_PASSWORD_FILE=EXCLUSIVE
+REMOTE_LOGIN_PASSWORDFILE=EXCLUSIVE
 ENDNEW
   cat <<ENDNEW >>$masterini
 
@@ -150,6 +163,24 @@ REMOTE_LOGIN_PASSWORD_FILE=EXCLUSIVE
 ENDNEW
 
   message "The new init.ora files have been written to the desired destination ($masterini / $stdbyini). Please check if they are correct, and apply changes when necessary. After that, you can proceed (not before)."
+
+  #--------------------------------------------------------[ Password file ]---
+  pwdfile="${ORACLE_HOME}/dbs/orapw${ORACLE_SID}"
+  [ ! -e $pwdfile ] && {
+    yesno "Looks like you did not yet create a password file (${pwdfile} does not exist). Shall we do this now (or we cannot go on)?"
+    [ $? -ne 0 ] && abort;
+    readpass "Please provide the password to be used:"
+    waitmessage "Creating passwordfile..."
+    runcmd "orapwd file="$pwdfile" password="$pass1" users=20"
+  }
+  yesno "Shall the password file ($pwdfile) be distributed to the remote host (it will be needed there - we cannot log in otherwise)?"
+  case "$?" in
+    255) abort;;
+      1) ;;
+      0) waitmessage "Copying password file to remote host..."
+         runcmd "scp $pwdfile ${remotehost}:${pwdfile}"
+	 ;;
+  esac
 }
 
 #=================================================[ Step 3: Forced Logging ]===
@@ -162,7 +193,7 @@ function step_3 {
     255) abort;;
       1) ;;
       0) echo "ALTER DATABASE FORCE LOGGING;">$TMPFILE.sql
-         runcmd "sqlplus / as sysdba <$TMPFILE.sql" | tee -a "$LOGFILE"
+         runcmd "sqlplus / as sysdba <$TMPFILE.sql | tee -a $LOGFILE" "$TMPFILE"
          rm -f $TMPFILE.sql
 	 ;;
   esac
@@ -178,10 +209,11 @@ function step_4 {
       0) ;;
       1) waitmessage "Creating controlfile backup..."
          echo "BACKUP CURRENT CONTROLFILE FOR STANDBY;">$TMPFILE
-         $RMANCONN <$TMPFILE | tee -a "$LOGFILE"
+         runcmd "$RMANCONN <$TMPFILE | tee -a $LOGFILE" "$TMPFILE" "Creating backup controlfile..."
          [ $? -ne 0 ] && {
            alert "Some error occured creating the standby controlfile - aborting."
-           exit 1
+	   textbox "$SPOOLFILE"
+	   abort
          }
 	 ;;
   esac
@@ -189,7 +221,7 @@ function step_4 {
   case "$?" in
     255) abort;;
       1) ;;
-      0) . ${BINDIR}/mods/backup_daily
+      0) . ${BINDIR}/mods/backup_daily.sub
          yesno "If the backup was made successfully, we can continue creating the Standby Database. If there have been errors (ignore the
                \"RMAN-20207: UNTIL TIME or RECOVERY WINDOW is before RESETLOGS time\" on a database you just created within that time), this is the time to abort.\nContinue?"
 	 [ $? -ne 0 ] && abort

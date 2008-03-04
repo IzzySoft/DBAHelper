@@ -24,8 +24,15 @@ function winsize {
 # $2 - Scriptfile to display when in dryrun
 # $3 - Title for tailbox (if not given - no tailbox
 # $4 - Timeout for tailbox (not given - no timeout)
+# $5 - additional parm, e.g. "nospool" for commands like "echo $var>file"
 function runcmd {
   if [ $DRYRUN -eq 0 ]; then
+    NOSPOOL=0
+    [ -n "$5" ] && {
+      case "$5" in
+        nospool) NOSPOOL=1
+      esac
+    }
     [ -n "$3" ] && {
       WINTITLE="$3"
       local TB="| tailbox $SPOOLFILE $4 2>/dev/null"
@@ -33,8 +40,18 @@ function runcmd {
     touch $SPOOLFILE
     case $SILENT in
       0) cmd="$1 |tee -a $SPOOLFILE";;
-      1) cmd="$1 > $SPOOLFILE $TB";;
-      2|3) cmd="$1 &> $SPOOLFILE";;
+      1) if [ $NOSPOOL -gt 0 ]; then
+           cmd="$1"
+         else
+	   cmd="$1 > $SPOOLFILE $TB"
+	 fi
+	 ;;
+      2|3) if [ $NOSPOOL -gt 0 ]; then
+             cmd="$1"
+           else
+	     cmd="$1 &> $SPOOLFILE"
+	   fi
+	   ;;
     esac
     eval $cmd
   else
