@@ -21,8 +21,7 @@ NOHEAD=0
 CONFIGSTATEFILE="~/.rman_configured"
 [ -z "$USEDIALOG" ] && USEDIALOG=0
 
-[ -e /etc/rmanrc ] && . /etc/rmanrc
-[ -e ${BINDIR}/rmanrc ] && . ${BINDIR}/rmanrc
+. ${BINDIR}/rmanrc
 
 #-----------------------------------------------------------[ Display help ]---
 function help {
@@ -197,7 +196,6 @@ done
   fi
 }
 [ -z "$username" ] && SYSDBA="/ as sysdba"
-[ -z "$LOGFILE" ] && LOGFILE="${LOGDIR}/rman_$CMD-`date +\"%Y%m%d_%H%M%S\"`"
 
 #------------------------------------------------[ Setup the script to run ]---
 if [ -z "$CATALOG" ]; then
@@ -301,6 +299,7 @@ function showmenu() {
 #=========================================================[ Process action ]===
 # pass "$CMD" to this
 function action() {
+  [ -z "$LOGFILE" ] && LOGFILE="${LOGDIR}/rman_${1}-`date +\"%Y%m%d_%H%M%S\"`"
   case "$1" in
     create_standby)
       BACKTITLE="RMan Wrapper: Create Standby Database"
