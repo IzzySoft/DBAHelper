@@ -21,7 +21,8 @@ NOHEAD=0
 CONFIGSTATEFILE="~/.rman_configured"
 [ -z "$USEDIALOG" ] && USEDIALOG=0
 
-. ${BINDIR}/rmanrc
+[ -e /etc/rmanrc ] && . /etc/rmanrc
+[ -e ${BINDIR}/rmanrc ] && . ${BINDIR}/rmanrc
 
 #-----------------------------------------------------------[ Display help ]---
 function help {
