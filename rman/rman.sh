@@ -5,6 +5,7 @@
 ###############################################################################
 # $Id$
 
+trap 'abort' 2 3 15
 #===============================================[ Setup Script environment ]===
 if [ -z "${ORACLE_HOME}" ]; then			# Running via Cron job
   [ -f ~/.bashrc ] && . ~/.bashrc			# Get Oracle environment
