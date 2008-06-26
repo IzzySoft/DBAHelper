@@ -1,5 +1,78 @@
 #==================================================[ Full Database Restore ]===
 # $Id$
+#----------------------------------------------[ Check the listener status ]---
+waitmessage "Checking database status, please wait..."
+runcmd "lsnrctl status"
+[ $? -ne 0 ] && {
+  alert "The listener seems not to be running. Please make sure it's up before you retry!"
+  abort
+}
+
+#----------------------------------------------[ Check the database status ]---
+function check_db_state() {
+  STAT=`echo "set head off
+  select status from v\\$instance;"|sqlplus -s "/ as sysdba"`
+  STAT=`echo $STAT|awk '{ print $NF }'`
+  case "$STAT" in
+    STARTED)
+      yesno "Detected the database to be started, but neither mounted nor open.
+             Do we need to restore the control files first in order to mount the
+	     database? 'Yes' means we do this now, 'No' means no need to. Use
+	     Ctrl-C to abort completely."
+      [ $? -eq 1 ] && {
+        $0 restore_ctl
+	yesno "Have the control files successfully been restored?"
+	[ $? -eq 0 ] && {
+	  yesno "As a last resort, we can try to restore the controlfiles from
+	         autobackup. This probably means that in the end you have to do
+		 a RESETLOGS - but at least you have a chance to get your
+		 database back. Shall we try that?"
+	  if [ $? -eq 1 ]; then
+	    echo "RESTORE CONTROLFILE FROM AUTOBACKUP;">$TMPFILE
+	    echo "exit;">>$TMPFILE
+	    runcmd "$RMANCONN < $TMPFILE | tee -a $LOGFILE" $TMPFILE "Trying to restore Control Files..."
+	    yesno "If the output showed no errors, we can proceed now. Shall we?"
+	    if [ $? -eq 0 ]; then
+	      abort
+	    else
+	      waitmessage "Trying to mount the database now..."
+	      echo "ALTER DATABASE MOUNT;">$TMPFILE
+	      runcmd "sqlplus / as sysdba <$TMPFILE" $TMPFILE
+	      check_db_state
+	    fi
+	  else
+	    abort
+	  fi
+	}
+      }
+      ;;
+    MOUNTED)
+      ;;
+    OPEN)
+      yesno "Your database seems to be opened. Are you sure you want to do a full
+             restore from your backups?"
+      [ $? -eq 0 ] && abort
+      ;;
+    *) yesno "The database instance has not been started yet. Please make sure we
+              can do a 'startup mount' - i.e. at least the control files are available.
+	      Shall we try?"
+       if [ $? -eq 1 ]; then
+         echo "startup mount">$TMPFILE
+         runcmd "sqlplus / as sysdba <$TMPFILE" $TMPFILE
+	 [ $? -ne 0 ] && {
+	   alert "Looks like starting the database did fail. Maybe there are control files
+	          missing. We retry the database check to see if it at least 'started'.
+		  If you feel you are running into an endless loop, press Ctrl-C to abort."
+	 }
+	 check_db_state
+       else
+         abort
+       fi
+       ;;
+  esac
+}
+check_db_state
+
 #------------------------------[ Verify whether we have all backups needed ]---
 waitmessage "Verifying backup, please wait..."
 cat ${BINDIR}/rman.$CMD>$TMPFILE

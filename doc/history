@@ -10,6 +10,10 @@ v0.2.7
 + rman.sh create_standby: create and xfer passwordfile, displaying output on FORCE LOGGING
 * rman.sh create_standby: more detailed output if creation of standby controlfile fails
 ! rman.sh create_standby: call to backup procedure failed (file extension missing)
+! rman.sh: Logfile naming was incorrect in interactive mode
++ rman.sh restore_full: added check of listener and database state before the
+  restore starts; making sure the database can be mounted; warn user if it is
+  completely open
 
 v0.2.6 (25.02.2008)
 -------------------
