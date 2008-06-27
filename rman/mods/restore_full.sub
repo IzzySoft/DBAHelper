@@ -1,14 +1,22 @@
 #==================================================[ Full Database Restore ]===
 # $Id$
 #----------------------------------------------[ Check the listener status ]---
-waitmessage "Checking database status, please wait..."
-runcmd "lsnrctl status"
-[ $? -ne 0 ] && {
-  alert "The listener seems not to be running. Please make sure it's up before you retry!"
-  abort
+WINTITLE="Checking preconditions..."
+waitmessage "Checking listener status, please wait..."
+function check_listener() {
+  runcmd "lsnrctl status"
+  [ $? -ne 0 ] && {
+    yesno "Looks like the listener is not running (at least not the default one).
+           It may be safe to ignore this now - but you might consider starting
+	   the listener and check again. Do you want to check again now (yes),
+	   ignore the listener state (no), or abort (Ctrl-C)?"
+    [ $? -eq 1 ] && check_listener
+  }
 }
+check_listener
 
 #----------------------------------------------[ Check the database status ]---
+waitmessage "Checking database status, please wait..."
 function check_db_state() {
   STAT=`echo "set head off
   select status from v\\$instance;"|sqlplus -s "/ as sysdba"`
