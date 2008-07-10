@@ -5,7 +5,7 @@ SHADOW=0
 [ -z "$SILENT" ] && SILENT=0
 
 #-----------------------------------------------------------[ Trap handler ]---
-trap 'echo; exit' INT TERM
+trap 'echo; abort; exit' INT TERM
 
 #-----------------------------------------------------------------[ Colors ]---
 if [ -n "${TERM}" ]; then

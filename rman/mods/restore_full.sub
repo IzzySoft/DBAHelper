@@ -5,12 +5,17 @@ WINTITLE="Checking preconditions..."
 waitmessage "Checking listener status, please wait..."
 function check_listener() {
   runcmd "lsnrctl status"
-  [ $? -ne 0 ] && {
+  rc=$?
+  err=$(grep -i "tns:no listener" $SPOOLFILE)
+  [ $rc -ne 0 -o -n "$err" ] && {
     yesno "Looks like the listener is not running (at least not the default one).
            It may be safe to ignore this now - but you might consider starting
 	   the listener and check again. Do you want to check again now (yes),
 	   ignore the listener state (no), or abort (Ctrl-C)?"
-    [ $? -eq 1 ] && check_listener
+    [ $? -eq 0 ] && {
+      rm -f $SPOOLFILE
+      check_listener
+    }
   }
 }
 check_listener
@@ -27,20 +32,20 @@ function check_db_state() {
              Do we need to restore the control files first in order to mount the
 	     database? 'Yes' means we do this now, 'No' means no need to. Use
 	     Ctrl-C to abort completely."
-      [ $? -eq 1 ] && {
+      [ $? -eq 0 ] && {
         $0 restore_ctl
 	yesno "Have the control files successfully been restored?"
-	[ $? -eq 0 ] && {
+	if [ $? -ne 0 ]; then
 	  yesno "As a last resort, we can try to restore the controlfiles from
 	         autobackup. This probably means that in the end you have to do
 		 a RESETLOGS - but at least you have a chance to get your
 		 database back. Shall we try that?"
-	  if [ $? -eq 1 ]; then
+	  if [ $? -eq 0 ]; then
 	    echo "RESTORE CONTROLFILE FROM AUTOBACKUP;">$TMPFILE
 	    echo "exit;">>$TMPFILE
 	    runcmd "$RMANCONN < $TMPFILE | tee -a $LOGFILE" $TMPFILE "Trying to restore Control Files..."
 	    yesno "If the output showed no errors, we can proceed now. Shall we?"
-	    if [ $? -eq 0 ]; then
+	    if [ $? -eq 1 ]; then
 	      abort
 	    else
 	      waitmessage "Trying to mount the database now..."
@@ -51,7 +56,12 @@ function check_db_state() {
 	  else
 	    abort
 	  fi
-	}
+	else
+	  waitmessage "Trying to mount the database now..."
+	  echo "ALTER DATABASE MOUNT;">$TMPFILE
+	  runcmd "sqlplus / as sysdba <$TMPFILE" $TMPFILE
+          check_db_state
+	fi
       }
       ;;
     MOUNTED)
@@ -59,12 +69,12 @@ function check_db_state() {
     OPEN)
       yesno "Your database seems to be opened. Are you sure you want to do a full
              restore from your backups?"
-      [ $? -eq 0 ] && abort
+      [ $? -eq 1 ] && abort
       ;;
     *) yesno "The database instance has not been started yet. Please make sure we
               can do a 'startup mount' - i.e. at least the control files are available.
 	      Shall we try?"
-       if [ $? -eq 1 ]; then
+       if [ $? -eq 0 ]; then
          echo "startup mount">$TMPFILE
          runcmd "sqlplus / as sysdba <$TMPFILE" $TMPFILE
 	 [ $? -ne 0 ] && {
@@ -105,5 +115,5 @@ yesno "You decided to restore the database '$ORACLE_SID' from the displayed
 cat $BINDIR/rman.${CMD}_doit >$TMPFILE
 echo exit >> $TMPFILE
 WINTITLE="Restoring"
-waitmessage "${red}${blink}Running the restore - don't interrupt now!$NC"
+waitmessage "${red}${blink}Running the restore - do not interrupt now!$NC"
 runcmd "${RMANCONN} < $TMPFILE | tee -a $LOGFILE" "$TMPFILE" "${red}Running full Restore - DO NOT INTERRUPT!$NC"

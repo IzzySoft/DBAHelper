@@ -14,6 +14,9 @@ v0.2.7
 + rman.sh restore_full: added check of listener and database state before the
   restore starts; making sure the database can be mounted; warn user if it is
   completely open
+! rman.sh restore_full/restore_ctl: The scripts have not been aware that really
+  *everything* except the backup could be lost (e.g. unrecoverable disk crash).
+  Should work fine now (hopefully)
 
 v0.2.6 (25.02.2008)
 -------------------

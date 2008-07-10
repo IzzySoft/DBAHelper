@@ -78,6 +78,8 @@ function dbid_from_db() {
 #-----------------------------------------------------[ Get DBID from file ]---
 # Parsing "old" logfiles, checking for "*: $ORACLE_SID (DBID=*)*"
 function dbid_from_file() {
+echo "Start search. DBID is '$dbid'"
+  dbid=""
   for file in `ls ${LOGDIR}/rman_*`; do
     fid=`cat $file|sed -n 's/.*\:\s*\(\S\+\)\s*(DBID.*/\1/ p'|tr [:upper:] [:lower:]`
     [ "$fid" = "`echo $ORACLE_SID|tr [:upper:] [:lower:]`" ] && {
@@ -95,8 +97,11 @@ function dbid_from_user() {
            RMAN needs that information to locate your backup controlfile copy.
            You can find the DBID in any of the log files created during backup
            or other RMAN operations run by this script - look inside those files
-           for the string \"(DBID=\" - the DBID is quoted there.\n
-           \nPlease enter the DBID:"
+           for the string \"(DBID=\" - the DBID is quoted there.
+	   \nIn case you do not find the DBID, you have two choices: Be sure
+	   there never has been a second DB around here and try without the
+	   DBID (simply press <Enter>) - or abort the script.
+           \nPlease enter the DBID: "
   dbid="$res"
 }
 
@@ -109,7 +114,12 @@ function verify_data() {
        than a database query - so please check whether we found everything
        correctly.\n\nThese are the controlfiles (checked from $initora):\n$ctls\n
        \nFurthermore, we searched for the DBID in your previous logfiles
-       (${LOGDIR}/rman_*) and found it to be \"$dbid\".\n\nIs this all correct?"
+       (${LOGDIR}/rman_*)"
+  if [ -n "$dbid" ]; then
+    msg="${msg} and found it to be \"$dbid\".\n\nIs this all correct?"
+  else
+    msg="${msg} but could not find it there.\n\nIs this all correct?"
+  fi
   yesno "$msg"
   [ $? -ne 0 ] && {
     readval "Please specify your controlfiles as a comma separated list without
@@ -142,8 +152,9 @@ function no_restore() {
   while [ $i -lt ${lostctl[*]} ]; do
     msg="${msg}\n${lostctl[$i]}"
   done
-  yesno "$msg\n\nDo you still want to continue - despite of the fact this
-         information may be incorrect?"
+  msg="${msg}\n\nDo you still want to continue - despite of the fact this
+       information may be incorrect?"
+  yesno "$msg"
   [ $? -ne 0 ] && abort
 }
 
@@ -190,30 +201,12 @@ function step_2() {
            really do not have any local (active) controlfile copy left.\n
            \nAre you sure you want to proceed (with above mentioned implications)?"
     [ $? -ne 0 ] && abort
-    message "Let us make sure we have valid backups available. Please watch the
-             output of the following command for any errors, or better: That it
-             confirms we have all files needed available."
-    echo "SET DBID=$dbid;">$TMPFILE
-    echo "RESTORE CONTROLFILE FROM AUTOBACKUP PREVIEW SUMMARY;">>$TMPFILE
-    echo "RESTORE CONTROLFILE FROM AUTOBACKUP VALIDATE;">>$TMPFILE
-    runcmd "$RMANCONN < $TMPFILE | tee -a $LOGFILE" $TMPFILE "Verifying whether a valid backup exists..."
-    yesno "If there have not been any errors - but RMAN found valid backups to
-           use, we now can run the restore. Continue?"
-    [ $? -ne 0 ] && {
-      message "You chose to abort the restore process. If the reason was there
-              have been no (valid) backups found, you are in some trouble: You
-              have nothing available to restore the lost files from. This means
-              you have to create new controlfiles. Hopefully you have all the
-              information needed for this process - with some luck, you will
-              find most of this in the first alert log ever written for this
-              database, when you ran the CREATE DATABASE command. Detailed
-              information can be found in the Oracle Database Backup and
-              Recovery Advanced Users Guide - you may wish to visit
-              http://download.oracle.com/docs/cd/B19306_01/backup.102/b14191/osrecov005.htm"
-      abort
-    }
     message "Running the restore. Please check the output carefully for errors."
-    echo "SET DBID=$dbid;">$TMPFILE
+    if [ -n "$dbid" ]; then
+      echo "SET DBID=$dbid;">$TMPFILE
+    else
+      echo >$TMPFILE
+    fi
     echo "SHUTDOWN ABORT">>$TMPFILE
     echo "STARTUP NOMOUNT">>$TMPFILE
     echo "RESTORE CONTROLFILE FROM AUTOBACKUP;">>$TMPFILE
@@ -228,7 +221,8 @@ function step_2() {
              failed, that will not help - and this script cannot help you further..."
     }
     yesno "Looks like the restore succeeded. Shall we continue with the restore
-           and open the database RESETLOGS (this is required)?"
+           and open the database RESETLOGS (this is required)? Answer 'No' if
+	   you are doing a full restore."
     [ $? -ne 0 ] && abort
     echo "ALTER DATABASE MOUNT;">$TMPFILE
     echo "RECOVER DATABASE USING BACKUP CONTROLFILE UNTIL CANCEL;">>$TMPFILE
