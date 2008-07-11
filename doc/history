@@ -3,7 +3,7 @@ $Id$
 History for DBAHelper
 =====================
 
-v0.2.7
+v0.2.7 (11.07.2008)
 -------------------
 + rman.sh create_standby: checking whether ORACLE_HOME is set and update of tnsnames succeeds
 + rman.sh create_standby: init.ora adaptions: case insensitive search
