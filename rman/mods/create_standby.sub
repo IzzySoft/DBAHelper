@@ -171,7 +171,7 @@ ENDNEW
     [ $? -ne 0 ] && abort;
     readpass "Please provide the password to be used:"
     waitmessage "Creating passwordfile..."
-    runcmd "orapwd file="$pwdfile" password="$pass1" users=20"
+    runcmd "orapwd file="$pwdfile" password="$pass1" entries=20"
   }
   yesno "Shall the password file ($pwdfile) be distributed to the remote host (it will be needed there - we cannot log in otherwise)?"
   case "$?" in
@@ -364,7 +364,7 @@ function step_8() {
            apply them. If you decide to not apply them automatically, you will
            have to do so manually, and may want to copy the commands from that
            screen - but you will also find the settings at the end of the
-           '$masterini'."
+           $masterini."
   textbox "$TMPFILE.sql"
   yesno "Do you want to apply these changes now?"
   if [ $? -ne 0 ]; then
