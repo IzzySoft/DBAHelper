@@ -15,14 +15,17 @@ tables are re-organized (and probably got smaller again by 10 to 25% that way),
 indexes are rebuilt, and everything got faster.
 
 
-## Why four scripts?
+## Why five scripts?
 Steps have to be performed with different logins. Only the DBA should create
 tablespaces and assign them (incl. quotas), data should be dealt with by its
 owner (especially if you've got database vault active), and then again the DBA
 must take care for dropping the old and renaming the new tablespace – after
-having made sure it's safe to do so.
+having made sure it's safe to do so. Finally, we have to work around some Oracle
+bug: though according to documentation, renaming a tablespace should be
+transparent to the tables occupying it – that doesn't apply to partitioned
+tables; their default tablespace attribute gets hosed.
 
-So we have four scripts altogether, to be run in the given order:
+So we have five scripts altogether, to be run in the given order:
 
 * `01_dba_newtablespace.sql`: DBA preparing the new tablespace
 * `02_owner_movesegments.sql`: schema owner moving all objects over
@@ -30,6 +33,8 @@ So we have four scripts altogether, to be run in the given order:
   original tablespace – or it's safe to be dropped
 * `04_dba_cleanuptablespaces.sql`: DBA drops the original TS, and renames
   the new one to replace it.
+* `05_owner_adjust.sql`: Working around an Oracle bug, the owner finally has to
+  modify the default tablespace attribute of partitioned tables again
 
 
 ## Pre-Conditions
@@ -47,6 +52,7 @@ the following and replace it with values matching your installation:
   as `ts_mig`, or a separate one – but *must not* be identical with `ts_orig`
 * `schema_owner`: as the name says. That's used for indexes and gathering
   schema stats in the end.
+* and of course the file size for the new tablespace in `01_dba_newtablespace.sql`
 
 Remember all those are "Oracle object names", so spell them UPPERCASE.
 
