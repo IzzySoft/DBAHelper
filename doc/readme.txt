@@ -60,7 +60,7 @@ without any argument, so they will show it.
   ---------------------+-------------------------------------------------------
   ExportOracleDB       | Wrapper to EXP for full DB export with default
                        | parameters (overwrite on command line) and optional
-		       | compression of the resulting dump file
+                       | compression of the resulting dump file
   Generate_createdb.sh | Reverse engineer the database creation script from a
                        | running instance (configuration within the script)
   analobj.sh           | Analyzes Objects for a given schema and outputs an
