@@ -1,0 +1,3 @@
+-- Cleanup from TS migration
+DROP TABLESPACE ts_orig INCLUDING CONTENTS AND DATAFILES;
+ALTER TABLESPACE ts_mig RENAME TO ts_orig;
