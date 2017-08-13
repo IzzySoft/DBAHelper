@@ -6,5 +6,5 @@ often. In these cases we like to save some keystrokes and let the
 scripts do the job.
 
 A more detailed introduction and documentation can be found in the
-`doc/` and `doc/html/` directories of the source code – and also on [the
-project's original website](http://projects.izzysoft.de/trac/dbahelper/).
+`doc/` and `doc/html/` directories of the source code – and also in [the
+wiki](wiki/).
