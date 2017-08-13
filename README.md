@@ -7,4 +7,4 @@ scripts do the job.
 
 A more detailed introduction and documentation can be found in the
 `doc/` and `doc/html/` directories of the source code – and also in [the
-wiki](wiki/).
+wiki](https://github.com/IzzySoft/DBAHelper/wiki/).
